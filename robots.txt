@@ -1,0 +1,21 @@
+# 랠리클럽 — 검색엔진·AI 크롤러 허용 규칙
+# 로그인·회원 관리·결제 단계 페이지(auth, members, checkout, success, fail)는
+# 여기서 막지 않고 각 페이지의 <meta name="robots" content="noindex, follow">로 검색 결과에서 빼요.
+# (robots.txt로 막으면 크롤러가 noindex를 읽지 못해요)
+
+User-agent: *
+Allow: /
+
+# AI 검색·답변 엔진(GEO)도 명시적으로 허용해요
+User-agent: GPTBot
+User-agent: OAI-SearchBot
+User-agent: ChatGPT-User
+User-agent: ClaudeBot
+User-agent: Claude-SearchBot
+User-agent: Claude-User
+User-agent: PerplexityBot
+User-agent: Google-Extended
+User-agent: Applebot-Extended
+Allow: /
+
+Sitemap: https://tennisclub-peach.vercel.app/sitemap.xml

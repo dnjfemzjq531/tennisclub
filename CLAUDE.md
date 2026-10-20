@@ -50,6 +50,13 @@ supabase-js(CDN, 버전 고정)  →  js/supabase-config.js  →  js/store.js  �
 - 클라이언트 키는 `js/toss-config.js`(토스 문서용 공개 테스트 키). 시크릿 키는 Edge Function 시크릿 `TOSS_SECRET_KEY`로 넣고, 없으면 문서용 공개 테스트 시크릿 키를 써요. 시크릿 키는 브라우저 코드에 절대 넣지 않아요.
 - 토스페이먼츠 연동 문서는 `.mcp.json`에 등록된 `tosspayments-integration-guide` MCP 서버로 찾아볼 수 있어요.
 
+## SEO · AEO · GEO
+
+- 공개 페이지(`index`, `clubs`, `schedule`, `market`, `dues`)는 `<head>`에 description, canonical(`https://tennisclub-peach.vercel.app/...`), OG/Twitter(`assets/og-image.png` 1200×630), JSON-LD를 둬요. 홈은 `WebSite`·`Organization`·`WebApplication`·`FAQPage`, 나머지는 `WebPage` + `BreadcrumbList`예요.
+- 로그인·회원 관리·결제 단계 페이지(`auth`, `members`, `checkout`, `success`, `fail`)는 `noindex, follow`예요. `robots.txt`로는 막지 않아요(막으면 noindex를 못 읽어요).
+- 홈의 FAQ 섹션(`#faq`)과 `<head>`의 `FAQPage` JSON-LD는 문구가 같아야 해요. 하나를 고치면 둘 다, 그리고 `llms.txt`도 같이 고쳐요.
+- 공개 페이지를 추가하면 `sitemap.xml`과 `llms.txt`에도 넣어요. 화면 내용은 JS로 그려지므로, 크롤러가 읽을 핵심 설명은 정적 HTML에 둬요.
+
 ## 디자인 시스템
 
 `css/style.css` 한 파일에 전부 있어요. 색은 `:root` 토큰(`--court` 짙은 초록, `--ball` 테니스공 옐로, `--clay` 클레이 오렌지, `--cream` 배경)을 쓰고, 폰트는 디스플레이용 Bricolage Grotesque, 본문 Pretendard, 라벨 JetBrains Mono예요. 서브 페이지는 `.page-hero`(초록 배경 + 코트 라인 SVG + `.display` 큰 영문 제목) 패턴을 따르고, 페이지별 스타일은 파일 안에 `/* ===== PAGE ===== */` 구역으로 나뉘어 있어요. 브레이크포인트는 대략 1000px·900px·720px·600px예요.
