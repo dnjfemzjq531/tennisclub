@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>클럽 — 랠리클럽</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="clubs">
+  <div id="header"></div>
+
+  <main>
+    <section class="page-hero">
+      <div class="court-art" id="hero-court"></div>
+      <div class="container">
+        <span class="hero-index">01 / CLUBS</span>
+        <div class="hero-row">
+          <h1 class="display">FIND YOUR<br><span class="hl">CLUB.</span></h1>
+          <p class="lead">동네 코트에서 함께 칠 사람을 찾거나, 우리만의 클럽을 새로 만들어 보세요.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="section-sm">
+      <div class="container">
+        <div class="toolbar">
+          <div class="pills" id="filter" role="group" aria-label="클럽 필터">
+            <button class="pill is-active" type="button" data-filter="all">전체</button>
+            <button class="pill" type="button" data-filter="mine">내 클럽</button>
+            <button class="pill" type="button" data-filter="open">가입 가능</button>
+          </div>
+          <label class="search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+            <span class="sr-only">클럽 검색</span>
+            <input class="input" id="q" type="search" placeholder="클럽 이름, 지역, 코트로 검색">
+          </label>
+        </div>
+        <div class="grid g-3" id="club-grid"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 클럽 만들기 -->
+  <dialog class="modal" id="create-modal" aria-labelledby="create-title">
+    <form id="create-form" method="dialog" novalidate>
+      <div class="modal-head">
+        <h3 id="create-title">새 클럽 만들기</h3>
+        <button class="icon-btn" type="button" data-close aria-label="닫기">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="field span-2">
+            <label for="c-name">클럽 이름 <span class="req">*</span></label>
+            <input class="input" id="c-name" name="name" maxlength="30" placeholder="예) 그린코트 테니스클럽" required>
+          </div>
+          <div class="field">
+            <label for="c-region">활동 지역 <span class="req">*</span></label>
+            <input class="input" id="c-region" name="region" placeholder="예) 서울 송파" required>
+          </div>
+          <div class="field">
+            <label for="c-court">주 코트 <span class="req">*</span></label>
+            <input class="input" id="c-court" name="court" placeholder="예) 올림픽공원 테니스장" required>
+          </div>
+          <div class="field span-2">
+            <label for="c-desc">클럽 소개</label>
+            <textarea class="textarea" id="c-desc" name="desc" maxlength="200" placeholder="운영 시간, 실력대, 분위기를 알려주세요."></textarea>
+          </div>
+          <div class="field">
+            <label for="c-fee">월 회비 (원) <span class="req">*</span></label>
+            <input class="input" id="c-fee" name="monthlyFee" type="number" min="0" step="1000" value="30000" required>
+          </div>
+          <div class="field">
+            <span class="label">카드 색상</span>
+            <div class="radio-cards" style="grid-template-columns:repeat(3,1fr)">
+              <label class="radio-card"><input type="radio" name="tone" value="court" checked><span>코트</span></label>
+              <label class="radio-card"><input type="radio" name="tone" value="ball"><span>볼</span></label>
+              <label class="radio-card"><input type="radio" name="tone" value="clay"><span>클레이</span></label>
+            </div>
+          </div>
+          <div class="field span-2">
+            <span class="label">가입 방식</span>
+            <div class="radio-cards">
+              <label class="radio-card"><input type="radio" name="approval" value="manual" checked><span>운영진 승인<small>신청 후 운영진이 승인해요</small></span></label>
+              <label class="radio-card"><input type="radio" name="approval" value="auto"><span>바로 가입<small>신청하면 바로 회원이 돼요</small></span></label>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" type="button" data-close>취소</button>
+        <button class="btn btn-court" type="submit">클럽 만들기</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="footer"></div>
+
+  <script src="js/store.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/pages/clubs.js"></script>
+</body>
+</html>

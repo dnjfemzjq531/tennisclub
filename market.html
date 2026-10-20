@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>중고거래 — 랠리클럽</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="market">
+  <div id="header"></div>
+
+  <main>
+    <section class="page-hero">
+      <div class="court-art" id="hero-court"></div>
+      <div class="container">
+        <span class="hero-index">03 / MARKET</span>
+        <div class="hero-row">
+          <h1 class="display">SECOND<br><span class="hl">SERVE.</span></h1>
+          <div>
+            <p class="lead" style="margin-bottom:20px">안 쓰는 라켓과 용품에게 두 번째 서브 기회를. 코트 친구들과 믿고 거래해요.</p>
+            <button class="btn btn-ball" type="button" id="sell-btn">+ 판매 등록하기</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="marquee dark" aria-hidden="true"><div class="marquee-track" id="marquee"></div></div>
+
+    <section class="section-sm">
+      <div class="container">
+        <div class="toolbar">
+          <div class="pills" id="cats" role="group" aria-label="카테고리"></div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;flex:1;justify-content:flex-end">
+            <label class="search" style="flex:1;max-width:320px;min-width:200px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+              <span class="sr-only">상품 검색</span>
+              <input class="input" id="q" type="search" placeholder="브랜드, 모델명 검색">
+            </label>
+            <label class="sr-only" for="sort">정렬</label>
+            <select class="select" id="sort" style="width:auto;border-radius:999px">
+              <option value="new">최신순</option>
+              <option value="low">낮은 가격순</option>
+              <option value="high">높은 가격순</option>
+            </select>
+          </div>
+        </div>
+        <label style="display:inline-flex;gap:10px;align-items:center;font-size:14px;font-weight:600;margin-bottom:24px">
+          <input class="check" type="checkbox" id="only-selling"> 판매중인 상품만 보기
+        </label>
+        <div class="grid g-4" id="item-grid"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 상품 상세 -->
+  <dialog class="modal wide" id="item-modal" aria-labelledby="item-title">
+    <div class="modal-head">
+      <span class="eyebrow">Item detail</span>
+      <button class="icon-btn" type="button" data-close aria-label="닫기">✕</button>
+    </div>
+    <div class="modal-body" id="item-detail"></div>
+  </dialog>
+
+  <!-- 판매 등록 -->
+  <dialog class="modal" id="sell-modal" aria-labelledby="sell-title">
+    <form id="sell-form" novalidate>
+      <div class="modal-head">
+        <h3 id="sell-title">판매 등록</h3>
+        <button class="icon-btn" type="button" data-close aria-label="닫기">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="field span-2">
+            <label for="s-title">상품명 <span class="req">*</span></label>
+            <input class="input" id="s-title" name="title" maxlength="50" placeholder="예) 윌슨 블레이드 98 v8 (G2)" required>
+          </div>
+          <div class="field">
+            <label for="s-cat">카테고리</label>
+            <select class="select" id="s-cat" name="category">
+              <option>라켓</option><option>신발</option><option>가방</option><option>의류</option><option>공·소모품</option><option>기타</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="s-cond">상태</label>
+            <select class="select" id="s-cond" name="condition">
+              <option>새상품</option><option>거의 새것</option><option selected>사용감 적음</option><option>사용감 있음</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="s-price">가격 (원) <span class="req">*</span></label>
+            <input class="input" id="s-price" name="price" type="number" min="1000" step="1000" placeholder="100000" required>
+            <span class="hint">1,000원 단위로 입력해 주세요.</span>
+          </div>
+          <div class="field">
+            <label for="s-region">거래 지역 <span class="req">*</span></label>
+            <input class="input" id="s-region" name="region" placeholder="예) 서울 송파" required>
+          </div>
+          <div class="field span-2">
+            <label for="s-desc">설명</label>
+            <textarea class="textarea" id="s-desc" name="desc" maxlength="500" placeholder="구매 시기, 사용 기간, 하자 여부를 알려주세요."></textarea>
+          </div>
+          <div class="field span-2">
+            <span class="label">사진</span>
+            <p class="hint">퍼블리싱 시안이라 사진 대신 카테고리 일러스트가 들어가요.</p>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" type="button" data-close>취소</button>
+        <button class="btn btn-court" type="submit">등록하기</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="footer"></div>
+
+  <script src="js/store.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/pages/market.js"></script>
+</body>
+</html>

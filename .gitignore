@@ -1,0 +1,15 @@
+# 개인 로컬 설정
+.claude/settings.local.json
+
+# 의존성·빌드
+node_modules/
+
+# OS·에디터
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# 환경변수 (시크릿 키는 절대 커밋하지 마세요)
+.env
+.env.*

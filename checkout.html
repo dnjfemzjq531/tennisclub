@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>결제하기 — 랠리클럽</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="stylesheet" href="css/style.css">
+  <!-- 토스페이먼츠 JavaScript SDK v2 -->
+  <script src="https://js.tosspayments.com/v2/standard"></script>
+</head>
+<body data-page="checkout">
+  <div id="header"></div>
+
+  <main>
+    <section class="page-hero" style="padding:48px 0 40px">
+      <div class="court-art" id="hero-court"></div>
+      <div class="container">
+        <span class="hero-index">CHECKOUT</span>
+        <h1 class="display" style="font-size:clamp(48px,8vw,112px)">MATCH <span class="hl">POINT.</span></h1>
+      </div>
+    </section>
+
+    <section class="section-sm">
+      <div class="container" id="checkout-root">
+        <div class="test-banner">
+          <b>🧪 테스트 결제</b>
+          <span>토스페이먼츠 문서용 테스트 키로 연동돼 있어요. 결제해도 실제로 돈이 빠져나가지 않아요.</span>
+        </div>
+        <div class="checkout">
+          <aside class="receipt" id="receipt"></aside>
+          <div class="pay-box">
+            <div class="pay-box-head">
+              <h2>결제 수단</h2>
+              <span class="badge badge-line">Powered by Toss Payments</span>
+            </div>
+            <!-- 결제 UI -->
+            <div id="payment-method">
+              <div class="widget-loading" id="widget-loading"><span id="loading-ball"></span>결제 수단을 불러오고 있어요</div>
+            </div>
+            <!-- 이용약관 UI -->
+            <div id="agreement"></div>
+            <div class="pay-cta">
+              <button class="btn btn-court btn-lg btn-block" type="button" id="pay-button" disabled>결제하기</button>
+              <p class="secure-note">🔒 결제 정보는 토스페이먼츠가 안전하게 처리해요.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="footer"></div>
+
+  <script src="js/store.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/toss-config.js"></script>
+  <script src="js/pages/checkout.js"></script>
+</body>
+</html>

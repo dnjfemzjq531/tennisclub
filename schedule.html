@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>경기 일정 — 랠리클럽</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="schedule">
+  <div id="header"></div>
+
+  <main>
+    <section class="page-hero">
+      <div class="court-art" id="hero-court"></div>
+      <div class="container">
+        <span class="hero-index">02 / SCHEDULE</span>
+        <div class="hero-row">
+          <h1 class="display">MATCH<br><span class="outline">DAYS.</span></h1>
+          <p class="lead">클럽 경기 일정을 확인하고 참석 여부를 알려주세요. 운영진은 새 일정을 등록할 수 있어요.</p>
+        </div>
+        <div class="pills" id="club-pills" role="group" aria-label="클럽 선택"></div>
+      </div>
+    </section>
+
+    <section class="section-sm">
+      <div class="container" id="sched-root">
+        <div class="sched-layout">
+          <aside class="sched-side">
+            <div class="cal" id="cal"></div>
+            <div class="legend">
+              <span><i style="background:var(--clay)"></i>경기 있는 날</span>
+              <span><i style="background:var(--court)"></i>선택한 날</span>
+            </div>
+            <button class="btn btn-court btn-block" type="button" id="add-game" hidden>+ 새 일정 등록</button>
+          </aside>
+          <div>
+            <div class="toolbar" style="margin-bottom:20px">
+              <div class="pills" id="range" role="group" aria-label="일정 범위">
+                <button class="pill is-active" type="button" data-range="upcoming">다가오는 일정</button>
+                <button class="pill" type="button" data-range="past">지난 일정</button>
+              </div>
+              <p class="muted" id="list-caption"></p>
+            </div>
+            <div class="game-list" id="game-list"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- 일정 등록 -->
+  <dialog class="modal" id="game-modal" aria-labelledby="game-title">
+    <form id="game-form" novalidate>
+      <div class="modal-head">
+        <h3 id="game-title">새 일정 등록</h3>
+        <button class="icon-btn" type="button" data-close aria-label="닫기">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-grid">
+          <div class="field span-2">
+            <label for="g-title">일정 이름 <span class="req">*</span></label>
+            <input class="input" id="g-title" name="title" maxlength="40" placeholder="예) 토요 정기 복식" required>
+          </div>
+          <div class="field">
+            <label for="g-type">종류</label>
+            <select class="select" id="g-type" name="type">
+              <option>정기전</option><option>연습</option><option>대회</option><option>교류전</option><option>레슨</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="g-date">날짜 <span class="req">*</span></label>
+            <input class="input" id="g-date" name="date" type="date" required>
+          </div>
+          <div class="field">
+            <label for="g-start">시작 <span class="req">*</span></label>
+            <input class="input" id="g-start" name="start" type="time" value="07:00" required>
+          </div>
+          <div class="field">
+            <label for="g-end">종료 <span class="req">*</span></label>
+            <input class="input" id="g-end" name="end" type="time" value="10:00" required>
+          </div>
+          <div class="field">
+            <label for="g-court">장소 <span class="req">*</span></label>
+            <input class="input" id="g-court" name="court" placeholder="예) 3·4번 코트" required>
+          </div>
+          <div class="field">
+            <label for="g-cap">정원</label>
+            <input class="input" id="g-cap" name="capacity" type="number" min="2" max="64" value="12">
+          </div>
+          <div class="field span-2">
+            <label for="g-memo">공지</label>
+            <textarea class="textarea" id="g-memo" name="memo" maxlength="200" placeholder="준비물, 참가비 등을 적어 주세요."></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" type="button" data-close>취소</button>
+        <button class="btn btn-court" type="submit">등록하기</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="footer"></div>
+
+  <script src="js/store.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/pages/schedule.js"></script>
+</body>
+</html>

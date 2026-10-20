@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>회비 납입 — 랠리클럽</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="dues">
+  <div id="header"></div>
+
+  <main>
+    <section class="page-hero">
+      <div class="court-art" id="hero-court"></div>
+      <div class="container">
+        <span class="hero-index">04 / DUES</span>
+        <div class="hero-row">
+          <h1 class="display">PAY THE<br><span class="hl">DUES.</span></h1>
+          <p class="lead">밀린 회비를 골라 한 번에 결제하세요. 토스페이먼츠로 카드, 계좌이체, 간편결제를 쓸 수 있어요.</p>
+        </div>
+        <div class="pills" id="club-pills" role="group" aria-label="클럽 선택"></div>
+      </div>
+    </section>
+
+    <section class="section-sm">
+      <div class="container" id="dues-root">
+        <div class="dues-layout">
+          <div>
+            <div class="sec-head" style="margin-bottom:24px">
+              <div><span class="eyebrow">My dues</span><h2 style="font-size:clamp(32px,4vw,48px)">내 회비 내역</h2></div>
+              <button class="btn btn-sm btn-ghost" type="button" id="toggle-all">미납 전체 선택</button>
+            </div>
+            <div class="due-list" id="due-list"></div>
+          </div>
+          <aside class="pay-summary" id="pay-summary"></aside>
+        </div>
+
+        <div class="admin-box" id="admin-box" hidden></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="footer"></div>
+
+  <script src="js/store.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/pages/dues.js"></script>
+</body>
+</html>

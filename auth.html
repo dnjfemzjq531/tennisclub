@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>로그인 · 회원가입 — 랠리클럽</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&family=JetBrains+Mono:wght@400;500&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body data-page="auth">
+  <div id="header"></div>
+
+  <main class="auth">
+    <section class="auth-art">
+      <div id="auth-court"></div>
+      <span class="eyebrow on-dark">Join the rally</span>
+      <div id="auth-ball"></div>
+      <h1>LOVE<br>ALL.<br><span class="hl">PLAY.</span></h1>
+    </section>
+
+    <section class="auth-form">
+      <div class="auth-box">
+        <div class="tabs" role="tablist">
+          <button class="tab is-active" type="button" role="tab" data-tab="login" aria-selected="true">로그인</button>
+          <button class="tab" type="button" role="tab" data-tab="signup" aria-selected="false">회원가입</button>
+        </div>
+
+        <!-- 로그인 -->
+        <div data-panel="login">
+          <h2>다시 코트로.</h2>
+          <p class="muted" style="margin-bottom:28px">가입한 이메일로 로그인하세요.</p>
+          <form id="login-form" novalidate>
+            <div class="field">
+              <label for="login-email">이메일</label>
+              <input class="input" id="login-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required>
+            </div>
+            <div class="field">
+              <label for="login-pw">비밀번호</label>
+              <input class="input" id="login-pw" name="password" type="password" autocomplete="current-password" placeholder="비밀번호" required>
+            </div>
+            <button class="btn btn-court btn-lg btn-block" type="submit">로그인 <span class="arr">→</span></button>
+          </form>
+          <div class="divider">또는</div>
+          <button class="btn btn-ball btn-block" type="button" id="demo-login">데모 계정으로 둘러보기</button>
+          <p class="hint" style="margin-top:14px">퍼블리싱 시안이라 비밀번호는 검사하지 않아요. 데모 이메일: demo@example.com</p>
+        </div>
+
+        <!-- 회원가입 -->
+        <div data-panel="signup" hidden>
+          <h2>첫 서브를 넣어요.</h2>
+          <p class="muted" style="margin-bottom:28px">가입하고 클럽을 만들거나 가입해 보세요.</p>
+          <form id="signup-form" novalidate>
+            <div class="form-grid">
+              <div class="field">
+                <label for="su-name">이름 <span class="req">*</span></label>
+                <input class="input" id="su-name" name="name" autocomplete="name" placeholder="홍길동" required>
+              </div>
+              <div class="field">
+                <label for="su-ntrp">실력 (NTRP)</label>
+                <select class="select" id="su-ntrp" name="ntrp">
+                  <option value="1.5">1.5 · 입문</option>
+                  <option value="2.0">2.0</option>
+                  <option value="2.5" selected>2.5 · 초급</option>
+                  <option value="3.0">3.0</option>
+                  <option value="3.5">3.5 · 중급</option>
+                  <option value="4.0">4.0</option>
+                  <option value="4.5">4.5 · 상급</option>
+                  <option value="5.0">5.0+</option>
+                </select>
+              </div>
+              <div class="field span-2">
+                <label for="su-email">이메일 <span class="req">*</span></label>
+                <input class="input" id="su-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required>
+              </div>
+              <div class="field span-2">
+                <label for="su-phone">휴대폰 번호 <span class="req">*</span></label>
+                <input class="input" id="su-phone" name="phone" type="tel" autocomplete="tel" placeholder="010-0000-0000" pattern="01[0-9]-?[0-9]{3,4}-?[0-9]{4}" required>
+              </div>
+              <div class="field span-2">
+                <label for="su-pw">비밀번호 <span class="req">*</span></label>
+                <input class="input" id="su-pw" name="password" type="password" autocomplete="new-password" placeholder="8자 이상" minlength="8" required>
+              </div>
+              <label class="span-2" style="display:flex;gap:10px;align-items:center;font-size:14px">
+                <input class="check" type="checkbox" name="agree" required> 서비스 이용약관과 개인정보 처리방침에 동의해요.
+              </label>
+            </div>
+            <button class="btn btn-court btn-lg btn-block" type="submit">가입하고 시작하기 <span class="arr">→</span></button>
+          </form>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/store.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/pages/auth.js"></script>
+</body>
+</html>
