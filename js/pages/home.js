@@ -1,6 +1,6 @@
-(function () {
+(async function () {
   'use strict';
-  const { $, esc, won, dateLabel, dday, avatar, roleBadge, ballSVG, courtSVG, itemCard, emptyState } = UI;
+  const { $, esc, won, dateLabel, dday, avatar, roleBadge, ballSVG, courtSVG, itemCard, emptyState, loading, fail } = UI;
 
   // 장식 요소
   $('#hero-court').outerHTML = courtSVG('hero-court', true);
@@ -10,10 +10,14 @@
   const chunk = `<span>${words.map((w) => `${w} ${ballSVG()}`).join(' ')}</span>`;
   $('#marquee').innerHTML = chunk + chunk;
 
+  $('#upcoming').innerHTML = loading();
+  $('#market-preview').innerHTML = loading();
+  await TC.ready;
   const me = TC.me();
 
   /* 대시보드 */
   const dash = $('#dash');
+  let upcomingList = [];
   if (!me) {
     dash.innerHTML = `<article class="dash-card dash-next reveal" style="grid-column:1/-1">
       ${courtSVG('court-art')}
@@ -23,9 +27,12 @@
       <div class="foot"><a class="btn btn-ball" href="auth.html">로그인 / 회원가입 <span class="arr">→</span></a></div>
     </article>`;
   } else {
-    const next = TC.upcomingGames(1)[0];
-    const unpaid = TC.unpaidSummary();
     const clubs = TC.myClubs();
+    let unpaid = { total: 0, count: 0 };
+    try {
+      [upcomingList, unpaid] = await Promise.all([TC.upcomingGames(4), TC.unpaidSummary()]);
+    } catch (err) { fail(err); }
+    const next = upcomingList[0];
     const yesCount = next ? Object.values(next.rsvps).filter((v) => v === 'yes').length : 0;
     const myRsvp = next ? next.rsvps[me.id] : null;
     const rsvpLabel = { yes: '참석', maybe: '미정', no: '불참' };
@@ -66,10 +73,10 @@
 
   /* 다가오는 경기 */
   const up = $('#upcoming');
-  const games = me ? TC.upcomingGames(4) : [];
+  const games = me ? upcomingList : [];
   up.innerHTML = games.length
     ? games.map((g) => {
-      const attendees = Object.entries(g.rsvps).filter(([, v]) => v === 'yes').map(([id]) => TC.user(id));
+      const attendees = Object.entries(g.rsvps).filter(([, v]) => v === 'yes').map(([id]) => TC.user(id)).filter(Boolean);
       return `<a class="up-row reveal" href="schedule.html?club=${g.clubId}&game=${g.id}">
         <span class="dd">${dday(g.date)}</span>
         <div><h4>${esc(g.title)}</h4><p class="meta">${esc(g.club.name)} · ${dateLabel(g.date)} ${g.start} · ${esc(g.court)}</p></div>
@@ -80,7 +87,10 @@
     : `<p class="lead">${me ? '예정된 경기가 없어요.' : '로그인하면 내 클럽의 경기 일정이 보여요.'}</p>`;
 
   /* 마켓 미리보기 */
-  const items = TC.items().filter((i) => i.status === 'selling').slice(0, 4);
+  let items = [];
+  try {
+    items = (await TC.items()).filter((i) => i.status === 'selling').slice(0, 4);
+  } catch (err) { fail(err); }
   $('#market-preview').innerHTML = items.length
     ? items.map(itemCard).join('')
     : emptyState('아직 올라온 상품이 없어요', '첫 번째 판매자가 되어 보세요.');

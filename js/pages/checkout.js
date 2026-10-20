@@ -1,40 +1,39 @@
-(function () {
+(async function () {
   'use strict';
-  const { $, esc, won, courtSVG, ballSVG, toast, param, emptyState, periodLabel } = UI;
-
-  const me = UI.requireLogin();
-  if (!me) return;
+  const { $, esc, won, courtSVG, ballSVG, toast, param, emptyState, periodLabel, fail } = UI;
 
   $('#hero-court').innerHTML = courtSVG();
   $('#loading-ball').outerHTML = ballSVG();
+  await TC.ready;
+  const me = UI.requireLogin();
+  if (!me) return;
 
-  const order = TC.order(param('orderId'));
-  if (!order || order.userId !== me.id || order.status !== 'ready') {
+  let order = null;
+  let lines = '';
+  try {
+    order = await TC.order(param('orderId'));
+    // 주문 요약에 쓸 회비·상품 정보
+    if (order && order.type === 'dues') {
+      const dues = await TC.duesByIds(order.refs);
+      lines = dues.map((d) => `<div><span>${periodLabel(d.period)} 회비</span><b>${won(d.amount)}</b></div>`).join('');
+    } else if (order && order.type === 'market' && order.refs[0]) {
+      const item = await TC.item(order.refs[0]);
+      const seller = item && TC.user(item.sellerId);
+      lines = item ? `
+        <div><span>상품</span><b>${esc(item.title)}</b></div>
+        <div><span>상태</span><b>${esc(item.condition)}</b></div>
+        <div><span>판매자</span><b>${esc(seller?.name || '-')}</b></div>
+        <div><span>거래 지역</span><b>${esc(item.region)}</b></div>` : '';
+    }
+  } catch (err) { fail(err); }
+
+  if (!order || order.status !== 'ready') {
     $('#checkout-root').innerHTML = emptyState(
-      order && order.status === 'done' ? '이미 결제가 끝난 주문이에요' : '주문 정보를 찾을 수 없어요',
+      order && order.status === 'done' ? '이미 결제가 끝난 주문이에요'
+        : order && order.status === 'expired' ? '결제 시간이 지난 주문이에요' : '주문 정보를 찾을 수 없어요',
       '회비나 중고거래 화면에서 다시 결제를 시작해 주세요.',
       '<a class="btn btn-court" href="dues.html">회비 납부</a> <a class="btn btn-ghost" href="market.html">중고거래</a>');
     return;
-  }
-
-  /* 주문 요약 */
-  function receiptLines() {
-    if (order.type === 'dues') {
-      return order.refs.map((id) => {
-        const d = TC.dues(findClubOfDue(id), me.id).find((x) => x.id === id);
-        return d ? `<div><span>${periodLabel(d.period)} 회비</span><b>${won(d.amount)}</b></div>` : '';
-      }).join('');
-    }
-    const item = TC.item(order.refs[0]);
-    const seller = item && TC.user(item.sellerId);
-    return item ? `
-      <div><span>상품</span><b>${esc(item.title)}</b></div>
-      <div><span>상태</span><b>${esc(item.condition)}</b></div>
-      <div><span>판매자</span><b>${esc(seller?.name || '-')}</b></div>
-      <div><span>거래 지역</span><b>${esc(item.region)}</b></div>` : '';
-  }
-  function findClubOfDue(dueId) {
-    return TC.myClubs().map((c) => c.id).find((cid) => TC.dues(cid, me.id).some((d) => d.id === dueId));
   }
 
   $('#receipt').innerHTML = `
@@ -43,7 +42,7 @@
       <h2>${esc(order.orderName)}</h2>
     </div>
     <div class="lines">
-      ${receiptLines()}
+      ${lines}
       <div><span>주문자</span><b>${esc(me.name)}</b></div>
       <div><span>주문번호</span><b class="mono" style="font-size:12px">${esc(order.orderId)}</b></div>
     </div>
@@ -88,7 +87,7 @@
             failUrl: `${base}fail.html`,
             customerEmail: me.email,
             customerName: me.name,
-            customerMobilePhone: me.phone.replace(/\D/g, ''),
+            customerMobilePhone: (me.phone || '').replace(/\D/g, '') || undefined,
           });
         } catch (err) {
           // 결제창을 닫는 등 사용자가 취소한 경우에도 여기로 와요.

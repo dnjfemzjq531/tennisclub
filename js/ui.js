@@ -143,11 +143,8 @@
     { key: 'dues', href: 'dues.html', label: '회비' },
   ];
 
-  function headerHTML(active) {
-    const me = TC.me();
-    const nav = NAV.map((n) =>
-      `<a href="${n.href}" class="${n.key === active ? 'is-active' : ''}" ${n.key === active ? 'aria-current="page"' : ''}>${n.label}</a>`).join('');
-    const right = me
+  function userAreaHTML(me) {
+    return me
       ? `<div class="user-menu">
           <button class="user-chip" type="button" aria-haspopup="true" aria-expanded="false">${avatar(me, 'avatar-sm')}<span>${esc(me.name)}</span></button>
           <div class="user-pop" hidden>
@@ -155,16 +152,24 @@
             <a href="clubs.html?filter=mine">내 클럽</a>
             <a href="schedule.html">내 일정</a>
             <a href="dues.html">내 회비</a>
+            <a href="market.html?filter=mine">내 판매·구매</a>
+            <a href="auth.html?mode=profile">내 정보 수정</a>
             <button type="button" data-logout>로그아웃</button>
           </div>
         </div>`
       : `<a class="btn btn-ball btn-sm" href="auth.html">로그인</a>`;
+  }
+
+  function headerHTML(active) {
+    const nav = NAV.map((n) =>
+      `<a href="${n.href}" class="${n.key === active ? 'is-active' : ''}" ${n.key === active ? 'aria-current="page"' : ''}>${n.label}</a>`).join('');
+    // 로그인 상태는 TC.ready 뒤에 채워요.
     return `<header class="site-header">
       <div class="container header-inner">
         <a class="logo" href="index.html" aria-label="랠리클럽 홈">${ballSVG('logo-ball')}<span>RALLY<i>CLUB</i></span></a>
         <nav class="gnb" aria-label="주요 메뉴">${nav}</nav>
         <div class="header-actions">
-          ${right}
+          <span class="user-slot" aria-live="polite"></span>
           <button class="menu-toggle" type="button" aria-label="메뉴 열기" aria-expanded="false"><span></span><span></span></button>
         </div>
       </div>
@@ -180,11 +185,25 @@
         </div>
         <p class="footer-big" aria-hidden="true">GAME.<br>SET. <span class="hl">CLUB.</span></p>
         <div class="footer-bottom">
-          <span>© 2026 RALLY CLUB · 테니스 동호회 플랫폼 퍼블리싱 시안</span>
-          <button type="button" class="link-btn" data-reset>데모 데이터 초기화</button>
+          <span>© 2026 RALLY CLUB · 테니스 동호회 플랫폼</span>
         </div>
       </div>
     </footer>`;
+  }
+
+  // 헤더 오른쪽 로그인 영역. 로그인·정보 수정 뒤에도 다시 불러요.
+  function renderUserArea() {
+    const slot = $('.site-header .user-slot');
+    if (!slot) return;
+    slot.innerHTML = userAreaHTML(TC.me());
+    const chip = $('.user-chip', slot);
+    const pop = $('.user-pop', slot);
+    if (!chip) return;
+    chip.addEventListener('click', (e) => {
+      e.stopPropagation();
+      pop.hidden = !pop.hidden;
+      chip.setAttribute('aria-expanded', String(!pop.hidden));
+    });
   }
 
   function mountChrome() {
@@ -202,33 +221,16 @@
         toggle.setAttribute('aria-expanded', String(open));
         toggle.setAttribute('aria-label', open ? '메뉴 닫기' : '메뉴 열기');
       });
-      const chip = $('.user-chip', header);
-      const pop = $('.user-pop', header);
-      if (chip) {
-        chip.addEventListener('click', (e) => {
-          e.stopPropagation();
-          pop.hidden = !pop.hidden;
-          chip.setAttribute('aria-expanded', String(!pop.hidden));
-        });
-        document.addEventListener('click', (e) => {
-          if (!pop.hidden && !pop.contains(e.target)) {
-            pop.hidden = true;
-            chip.setAttribute('aria-expanded', 'false');
-          }
-        });
-      }
     }
-
+    TC.ready.then(renderUserArea);
     document.addEventListener('click', (e) => {
       if (e.target.closest('[data-logout]')) {
-        TC.logout();
-        location.href = 'index.html';
+        TC.logout().finally(() => { location.href = 'index.html'; });
       }
-      if (e.target.closest('[data-reset]')) {
-        if (confirm('데모 데이터를 처음 상태로 되돌릴까요?')) {
-          TC.reset();
-          location.reload();
-        }
+      const pop = $('.user-pop');
+      if (pop && !pop.hidden && !pop.contains(e.target) && !e.target.closest('.user-chip')) {
+        pop.hidden = true;
+        $('.user-chip')?.setAttribute('aria-expanded', 'false');
       }
       const closer = e.target.closest('[data-close]');
       if (closer) closer.closest('dialog')?.close();
@@ -295,6 +297,21 @@
     return true;
   }
 
+  const loading = (label = '불러오는 중이에요') =>
+    `<div class="loading-state" role="status">${ballSVG('loading-ball')}<span>${label}</span></div>`;
+
+  // 비동기 작업 실패를 토스트로 알려요.
+  const fail = (err) => {
+    console.error(err);
+    toast(err && err.message ? err.message : '문제가 생겼어요. 잠시 후 다시 시도해 주세요.', 'error');
+  };
+
+  // 버튼을 누르는 동안 막아서 두 번 요청되지 않게 해요.
+  async function busy(btn, fn) {
+    if (btn) btn.disabled = true;
+    try { return await fn(); } finally { if (btn && btn.isConnected) btn.disabled = false; }
+  }
+
   const emptyState = (title, desc, action = '') =>
     `<div class="empty">${ballSVG('empty-ball')}<h3>${title}</h3><p>${desc}</p>${action}</div>`;
 
@@ -341,6 +358,7 @@
     $, $$, esc, won, dateLabel, periodLabel, dday, param, parseYmd, DOW,
     avatar, roleBadge, ballSVG, courtSVG, itemArt, itemCard, toneBg,
     openModal, closeModal, toast, requireLogin, clubPills, emptyState, reveal,
+    loading, fail, busy, renderUserArea,
   };
 
   mountChrome();

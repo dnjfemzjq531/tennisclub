@@ -1,16 +1,24 @@
-(function () {
+(async function () {
   'use strict';
-  const { $, $$, esc, won, avatar, roleBadge, courtSVG, toast, openModal, closeModal, param, emptyState } = UI;
+  const { $, $$, esc, won, avatar, roleBadge, courtSVG, toast, openModal, closeModal, param, emptyState, loading, fail, busy } = UI;
 
   $('#hero-court').innerHTML = courtSVG();
   const grid = $('#club-grid');
   let filter = ['mine', 'open'].includes(param('filter')) ? param('filter') : 'all';
   let query = '';
+  let allClubs = [];
+  let membersByClub = {};
+
+  // 클럽 목록과 활동 회원을 한 번에 불러와요.
+  async function load() {
+    allClubs = await TC.clubs();
+    membersByClub = allClubs.length ? await TC.members(allClubs.map((c) => c.id)) : {};
+  }
 
   function card(c) {
     const me = TC.me();
     const ms = me ? TC.membership(c.id) : null;
-    const members = TC.members(c.id);
+    const members = membersByClub[c.id] || [];
     let action;
     if (ms && ms.status === 'active') action = `<a class="btn btn-sm ${c.tone === 'ball' ? 'btn-court' : 'btn-ball'}" href="members.html?club=${c.id}">클럽 홈 →</a>`;
     else if (ms && ms.status === 'pending') action = '<span class="badge badge-cream">승인 대기중</span>';
@@ -44,7 +52,7 @@
       b.classList.toggle('is-active', b.dataset.filter === filter);
       b.setAttribute('aria-pressed', String(b.dataset.filter === filter));
     });
-    let clubs = TC.clubs();
+    let clubs = allClubs.slice();
     if (filter === 'mine') clubs = clubs.filter((c) => me && TC.membership(c.id)?.status === 'active');
     if (filter === 'open') clubs = clubs.filter((c) => !me || !TC.membership(c.id));
     if (query) {
@@ -89,9 +97,15 @@
     if (join) {
       e.stopPropagation();
       if (!TC.me()) return UI.requireLogin();
-      const status = TC.joinClub(join.dataset.join);
-      toast(status === 'active' ? '가입했어요. 환영해요!' : '가입 신청을 보냈어요. 운영진 승인을 기다려 주세요.');
-      return render();
+      busy(join, async () => {
+        try {
+          const status = await TC.joinClub(join.dataset.join);
+          if (status === 'active') membersByClub = await TC.members(allClubs.map((c) => c.id));
+          toast(status === 'active' ? '가입했어요. 환영해요!' : '가입 신청을 보냈어요. 운영진 승인을 기다려 주세요.');
+          render();
+        } catch (err) { fail(err); }
+      });
+      return;
     }
     if (e.target.closest('a')) return;
     const c = e.target.closest('[data-club]');
@@ -108,18 +122,30 @@
       return;
     }
     const v = (k) => f.elements[k].value.trim();
-    const club = TC.createClub({
-      name: v('name'), region: v('region'), court: v('court'), desc: v('desc'),
-      monthlyFee: Number(v('monthlyFee')), tone: v('tone'), approval: v('approval'),
+    busy(f.querySelector('[type=submit]'), async () => {
+      try {
+        const club = await TC.createClub({
+          name: v('name'), region: v('region'), court: v('court'), desc: v('desc'),
+          monthlyFee: Number(v('monthlyFee')), tone: v('tone'), approval: v('approval'),
+        });
+        TC.setCurrentClub(club.id);
+        closeModal('create-modal');
+        f.reset();
+        toast(`'${club.name}' 클럽을 만들었어요. 이제 클럽장이에요!`);
+        filter = 'mine';
+        await load();
+        render();
+      } catch (err) { fail(err); }
     });
-    TC.setCurrentClub(club.id);
-    closeModal('create-modal');
-    f.reset();
-    toast(`'${club.name}' 클럽을 만들었어요. 이제 클럽장이에요!`);
-    filter = 'mine';
-    render();
   });
 
+  grid.innerHTML = loading('클럽을 불러오는 중이에요');
+  await TC.ready;
+  try {
+    await load();
+  } catch (err) {
+    fail(err);
+  }
   render();
   if (param('create') === '1') openCreate();
 })();

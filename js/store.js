@@ -1,269 +1,249 @@
 /*
- * 랠리클럽 — 퍼블리싱용 목업 데이터 저장소
- * 서버 없이 화면을 확인할 수 있도록 localStorage에 데이터를 저장해요.
- * 실제 서비스에서는 이 파일의 함수들을 API 호출로 바꾸면 돼요.
+ * 랠리클럽 — 데이터 계층 (Supabase)
+ *
+ * 화면 코드는 전역 TC만 써요. 데이터를 가져오거나 바꾸는 함수는 모두 Promise를 돌려줘요.
+ * 페이지 시작 시 `await TC.ready`를 하면 로그인 사용자·내 멤버십이 캐시에 올라와서
+ * me(), user(), membership(), myClubs(), isAdmin(), isOwner(), currentClubId()는 바로(동기로) 쓸 수 있어요.
+ *
+ * 권한은 서버(RLS·RPC)가 강제해요. 여기 있는 확인은 화면 표시용이에요.
  */
 (function (global) {
   'use strict';
 
-  const DB_KEY = 'rallyclub_db_v1';
-  const SESSION_KEY = 'rallyclub_session_v1';
   const CLUB_KEY = 'rallyclub_club_v1';
+  const cfg = global.SUPABASE_CONFIG;
+  const sb = global.supabase.createClient(cfg.URL, cfg.PUBLISHABLE_KEY, {
+    auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+  });
 
-  // 사파리 사생활 보호 모드 등 저장소를 못 쓰는 환경에서도 화면은 돌아가게 해요.
+  // 예전 목업(localStorage) 데이터는 더 쓰지 않아요.
+  try {
+    localStorage.removeItem('rallyclub_db_v1');
+    localStorage.removeItem('rallyclub_session_v1');
+  } catch (e) { /* 저장소를 못 쓰는 환경 */ }
+
   const storage = {
     get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
     set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* 저장 불가 */ } },
     remove(k) { try { localStorage.removeItem(k); } catch (e) { /* 저장 불가 */ } },
   };
-  let memSession = null;
   let memClub = null;
 
   /* ---------- 유틸 ---------- */
   const pad = (n) => String(n).padStart(2, '0');
   const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  const dayOffset = (n) => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    d.setDate(d.getDate() + n);
-    return ymd(d);
-  };
+  const tsToYmd = (ts) => (ts ? ymd(new Date(ts)) : null);
   const periodOf = (offset = 0) => {
     const d = new Date();
     d.setDate(1);
     d.setMonth(d.getMonth() + offset);
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
   };
-  const uid = (p) => `${p}_${Math.random().toString(36).slice(2, 9)}${Date.now().toString(36).slice(-4)}`;
-  // 토스페이먼츠 customerKey: 유추할 수 없는 무작위 값이어야 해요.
-  const newCustomerKey = () =>
-    (global.crypto && typeof crypto.randomUUID === 'function') ? crypto.randomUUID() : `ck_${uid('a')}_${uid('b')}`;
-  // 토스페이먼츠 orderId: 6~64자, 영문·숫자·-·_ 만 허용
-  const newOrderId = () => `RC-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-
-  /* ---------- 시드 데이터 ---------- */
-  function seed() {
-    const users = [
-      ['u1', '김테니스', 'demo@example.com', '010-1234-5678', '3.5'],
-      ['u2', '이서브', 'serve@example.com', '010-2222-1111', '4.0'],
-      ['u3', '박발리', 'volley@example.com', '010-3333-2222', '3.0'],
-      ['u4', '최스매시', 'smash@example.com', '010-4444-3333', '4.5'],
-      ['u5', '정로브', 'lob@example.com', '010-5555-4444', '2.5'],
-      ['u6', '한드롭', 'drop@example.com', '010-6666-5555', '3.0'],
-      ['u7', '윤에이스', 'ace@example.com', '010-7777-6666', '3.5'],
-      ['u8', '강듀스', 'deuce@example.com', '010-8888-7777', '2.0'],
-    ].map(([id, name, email, phone, ntrp]) => ({
-      id, name, email, phone, ntrp, customerKey: newCustomerKey(), createdAt: dayOffset(-300),
-    }));
-
-    const clubs = [
-      {
-        id: 'c1', name: '그린코트 테니스클럽', region: '서울 송파', court: '올림픽공원 테니스장',
-        desc: '매주 토요일 오전, 하드코트에서 즐기는 복식 중심 클럽이에요. NTRP 2.5 이상이면 누구나 환영해요.',
-        monthlyFee: 30000, approval: 'manual', ownerId: 'u1', tone: 'court', createdAt: dayOffset(-400),
-      },
-      {
-        id: 'c2', name: '새벽발리 TC', region: '경기 성남', court: '분당 탄천 테니스장',
-        desc: '출근 전 6시, 새벽 공기 마시며 랠리하는 직장인 클럽. 한 시간 빡세게 치고 출근해요.',
-        monthlyFee: 20000, approval: 'auto', ownerId: 'u2', tone: 'ball', createdAt: dayOffset(-300),
-      },
-      {
-        id: 'c3', name: '클레이 크루', region: '서울 마포', court: '망원한강공원 테니스장',
-        desc: '클레이코트를 사랑하는 사람들. 매달 첫째 주는 초보자 레슨 데이로 운영해요.',
-        monthlyFee: 25000, approval: 'manual', ownerId: 'u3', tone: 'clay', createdAt: dayOffset(-150),
-      },
-    ];
-
-    const m = (clubId, userId, role, status = 'active', joined = -120) =>
-      ({ clubId, userId, role, status, joinedAt: dayOffset(joined) });
-    const memberships = [
-      m('c1', 'u1', 'owner', 'active', -400), m('c1', 'u4', 'admin', 'active', -380), m('c1', 'u2', 'member'),
-      m('c1', 'u5', 'member'), m('c1', 'u6', 'member', 'active', -60), m('c1', 'u7', 'member', 'active', -30),
-      m('c1', 'u8', 'member', 'pending', -2),
-      m('c2', 'u2', 'owner', 'active', -300), m('c2', 'u3', 'admin', 'active', -280), m('c2', 'u1', 'member', 'active', -200),
-      m('c2', 'u7', 'member', 'active', -90),
-      m('c3', 'u3', 'owner', 'active', -150), m('c3', 'u4', 'member'), m('c3', 'u6', 'member'),
-      m('c3', 'u5', 'member', 'pending', -1),
-    ];
-
-    const g = (id, clubId, title, type, offset, start, end, court, capacity, rsvps, memo = '') =>
-      ({ id, clubId, title, type, date: dayOffset(offset), start, end, court, capacity, rsvps, memo });
-    const games = [
-      g('g1', 'c1', '토요 정기 복식', '정기전', 3, '07:00', '10:00', '올림픽공원 3·4번 코트', 12,
-        { u1: 'yes', u4: 'yes', u2: 'yes', u5: 'maybe', u6: 'yes', u7: 'no' }, '공은 클럽에서 준비해요. 늦으면 첫 게임 대기!'),
-      g('g2', 'c1', '화요 야간 랠리', '연습', 7, '19:30', '21:30', '올림픽공원 7번 코트 (조명)', 8,
-        { u4: 'yes', u6: 'yes' }, '포핸드 크로스 랠리 위주 연습'),
-      g('g3', 'c1', '월례 클럽 대회', '대회', 10, '08:00', '13:00', '올림픽공원 1~4번 코트', 16,
-        { u1: 'yes', u2: 'yes', u4: 'yes', u5: 'yes', u7: 'maybe' }, '복식 리그전 후 시상식이 있어요. 참가비는 회비에 포함!'),
-      g('g4', 'c1', '클레이 크루 교류전', '교류전', 17, '09:00', '12:00', '망원한강공원 테니스장', 12,
-        { u1: 'maybe', u4: 'yes' }),
-      g('g5', 'c1', '토요 정기 복식', '정기전', -4, '07:00', '10:00', '올림픽공원 3·4번 코트', 12,
-        { u1: 'yes', u4: 'yes', u2: 'yes', u5: 'yes', u6: 'yes', u7: 'yes' }),
-      g('g6', 'c2', '새벽 랠리', '정기전', 1, '06:00', '07:30', '탄천 2번 코트', 8,
-        { u2: 'yes', u3: 'yes', u7: 'maybe' }),
-      g('g7', 'c2', '새벽 랠리 + 서브 클리닉', '레슨', 8, '06:00', '07:30', '탄천 2번 코트', 8, { u2: 'yes' }),
-      g('g8', 'c3', '초보자 레슨 데이', '레슨', 4, '10:00', '12:00', '망원 클레이 A코트', 10, { u3: 'yes', u6: 'yes' }),
-    ];
-
-    const it = (id, sellerId, title, category, price, condition, status, offset, tone, desc) =>
-      ({ id, sellerId, title, category, price, condition, status, createdAt: dayOffset(offset), tone, desc,
-        region: clubs.find((c) => c.ownerId === sellerId)?.region || '서울 송파' });
-    const items = [
-      it('i1', 'u4', '윌슨 블레이드 98 v8 (16x19, G2)', '라켓', 180000, '사용감 적음', 'selling', -1, 'court',
-        '3개월 사용했어요. 스트링은 RPM 블라스트 48파운드로 새로 맸어요. 오버그립 새 걸로 감아서 드려요.'),
-      it('i2', 'u2', '바볼랏 퓨어드라이브 2021', '라켓', 150000, '사용감 있음', 'selling', -2, 'ball',
-        '프레임 상단에 생활 기스 조금 있어요. 성능에는 문제없어요. 직거래는 분당 탄천에서 가능해요.'),
-      it('i3', 'u6', '아식스 젤 레졸루션 9 (270mm)', '신발', 85000, '거의 새것', 'selling', -3, 'clay',
-        '사이즈 미스로 두 번 신었어요. 올코트용이에요. 박스 있어요.'),
-      it('i4', 'u3', '헤드 투어 팀 6R 라켓백', '가방', 60000, '사용감 적음', 'selling', -4, 'paper',
-        '라켓 6자루 수납되고 신발 칸 따로 있어요. 내부 깨끗해요.'),
-      it('i5', 'u1', '던롭 포트 투어 볼 4캔 (미개봉)', '공·소모품', 24000, '새상품', 'selling', -5, 'ball',
-        '대회 기념품으로 받은 미개봉 공이에요. 4캔 일괄 판매해요.'),
-      it('i6', 'u7', '나이키 코트 드라이핏 폴로 (L)', '의류', 25000, '거의 새것', 'selling', -6, 'court',
-        '한 번 입고 세탁했어요. 정사이즈 L이에요.'),
-      it('i7', 'u5', '요넥스 이존 100 2022', '라켓', 140000, '사용감 적음', 'reserved', -7, 'clay',
-        '예약 중이에요. 거래가 취소되면 다시 올릴게요.'),
-      it('i8', 'u4', '테크니파이버 블랙코드 4S 릴 (200m)', '공·소모품', 45000, '새상품', 'sold', -9, 'paper',
-        '판매 완료된 상품이에요.'),
-    ];
-
-    const db = { version: 1, users, clubs, memberships, games, items, dues: [], orders: [] };
-
-    // 지난 두 달 + 이번 달 회비 기록
-    const unpaid = new Set(['c1:u1:-1', 'c1:u1:0', 'c1:u5:-1', 'c1:u5:0', 'c1:u2:0', 'c1:u7:0',
-      'c2:u1:0', 'c2:u7:0', 'c3:u6:0']);
-    memberships.filter((x) => x.status === 'active').forEach((x) => {
-      const club = clubs.find((c) => c.id === x.clubId);
-      [-2, -1, 0].forEach((o) => {
-        const paid = !unpaid.has(`${x.clubId}:${x.userId}:${o}`);
-        db.dues.push({
-          id: uid('d'), clubId: x.clubId, userId: x.userId, period: periodOf(o), amount: club.monthlyFee,
-          status: paid ? 'paid' : 'unpaid', paidAt: paid ? dayOffset(o * 30 - 2) : null, method: paid ? '토스페이먼츠' : null,
-        });
-      });
-    });
-    return db;
-  }
-
-  /* ---------- 로드·저장 ---------- */
-  let db = load();
-
-  function load() {
-    const raw = storage.get(DB_KEY);
-    if (raw) {
-      try {
-        const parsed = JSON.parse(raw);
-        if (parsed && parsed.version === 1) return parsed;
-      } catch (e) { /* 깨진 데이터는 새로 만들어요 */ }
-    }
-    const fresh = seed();
-    storage.set(DB_KEY, JSON.stringify(fresh));
-    // 데모: 처음 방문하면 데모 계정으로 로그인한 상태로 보여줘요.
-    storage.set(SESSION_KEY, 'u1');
-    memSession = 'u1';
-    return fresh;
-  }
-  const save = () => storage.set(DB_KEY, JSON.stringify(db));
-
-  /* ---------- 내부 헬퍼 ---------- */
-  const meId = () => storage.get(SESSION_KEY) || memSession;
-  const requireMe = () => {
-    const me = api.me();
-    if (!me) throw new Error('로그인이 필요해요.');
-    return me;
-  };
   const ROLE_ORDER = { owner: 0, admin: 1, member: 2 };
 
-  function ensureDues(clubId) {
-    const club = api.club(clubId);
-    if (!club) return;
-    const period = periodOf(0);
-    db.memberships
-      .filter((x) => x.clubId === clubId && x.status === 'active')
-      .forEach((x) => {
-        const exists = db.dues.some((d) => d.clubId === clubId && d.userId === x.userId && d.period === period);
-        if (!exists) {
-          db.dues.push({
-            id: uid('d'), clubId, userId: x.userId, period, amount: club.monthlyFee,
-            status: 'unpaid', paidAt: null, method: null,
-          });
-        }
-      });
+  // Supabase 응답에서 에러를 꺼내 사람이 읽을 수 있는 메시지로 던져요.
+  function unwrap({ data, error }) {
+    if (!error) return data;
+    console.error(error);
+    let msg = error.message || '요청을 처리하지 못했어요.';
+    if (error.code === '42501' && !/[가-힣]/.test(msg)) msg = '권한이 없어요.';
+    else if (error.code === '23514') msg = '입력값을 다시 확인해 주세요.';
+    else if (!/[가-힣]/.test(msg)) msg = '요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.';
+    throw new Error(msg);
   }
+
+  /* ---------- 매퍼 (DB 컬럼 → 화면용 모양) ---------- */
+  const mapClub = (r) => r && ({
+    id: r.id, name: r.name, region: r.region, court: r.court, desc: r.description,
+    monthlyFee: r.monthly_fee, approval: r.approval, tone: r.tone, ownerId: r.owner_id, createdAt: tsToYmd(r.created_at),
+  });
+  const mapProfile = (r) => r && ({
+    id: r.id, name: r.name, ntrp: r.ntrp,
+    ...(r.email !== undefined && { email: r.email }),
+    ...(r.phone !== undefined && { phone: r.phone }),
+    ...(r.customer_key !== undefined && { customerKey: r.customer_key }),
+  });
+  const mapGame = (r) => ({
+    id: r.id, clubId: r.club_id, title: r.title, type: r.type, date: r.date,
+    start: r.start_time.slice(0, 5), end: r.end_time.slice(0, 5), court: r.court,
+    capacity: r.capacity, memo: r.memo,
+    rsvps: Object.fromEntries((r.rsvps || []).map((x) => [x.user_id, x.status])),
+  });
+  const mapItem = (r) => r && ({
+    id: r.id, sellerId: r.seller_id, buyerId: r.buyer_id, title: r.title, category: r.category,
+    condition: r.condition, price: r.price, region: r.region, desc: r.description,
+    status: r.status, tone: r.tone, createdAt: tsToYmd(r.created_at),
+  });
+  const mapDue = (r) => ({
+    id: r.id, clubId: r.club_id, userId: r.user_id, period: r.period, amount: r.amount,
+    status: r.status, paidAt: tsToYmd(r.paid_at), method: r.method, orderId: r.order_id,
+  });
+  const mapOrder = (r) => r && ({
+    orderId: r.order_id, userId: r.user_id, type: r.type, orderName: r.order_name, amount: r.amount,
+    status: r.status, paymentKey: r.payment_key, paymentType: r.payment_type,
+    failCode: r.fail_code, failMessage: r.fail_message, paidAt: r.paid_at,
+    refs: (r.order_refs || []).map((x) => x.due_id || x.item_id).filter(Boolean),
+  });
+
+  /* ---------- 캐시 ---------- */
+  const state = { me: null, memberships: [], clubs: new Map() };
+  const users = new Map();
+  const remember = (p) => {
+    if (!p) return p;
+    users.set(p.id, { ...(users.get(p.id) || {}), ...p });
+    return users.get(p.id);
+  };
+
+  async function ensureUsers(ids) {
+    const missing = [...new Set(ids)].filter((id) => id && !users.has(id));
+    if (!missing.length) return;
+    const rows = unwrap(await sb.from('profiles').select('id, name, ntrp').in('id', missing));
+    rows.forEach((r) => remember(mapProfile(r)));
+  }
+
+  async function loadMine() {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) {
+      state.me = null;
+      state.memberships = [];
+      return;
+    }
+    const [profileRows, msRows] = await Promise.all([
+      sb.rpc('get_my_profile').then(unwrap),
+      sb.from('memberships')
+        .select('club_id, role, status, joined_at, clubs(*)')
+        .eq('user_id', session.user.id)
+        .then(unwrap),
+    ]);
+    state.me = profileRows[0] ? remember(mapProfile(profileRows[0])) : null;
+    state.memberships = msRows.map((m) => {
+      if (m.clubs) state.clubs.set(m.club_id, mapClub(m.clubs));
+      return { clubId: m.club_id, role: m.role, status: m.status, joinedAt: tsToYmd(m.joined_at) };
+    });
+  }
+
+  const ready = loadMine().catch((err) => {
+    console.error(err);
+    state.me = null;
+    state.memberships = [];
+  });
 
   /* ---------- 공개 API ---------- */
   const api = {
-    today: () => dayOffset(0),
+    client: sb,
+    ready,
+    today: () => ymd(new Date()),
     periodOf,
 
     /* 세션 */
-    me() {
-      const id = meId();
-      return db.users.find((u) => u.id === id) || null;
+    me: () => state.me,
+    user: (id) => users.get(id) || null,
+    async refresh() { await loadMine(); },
+    async login(email, password) {
+      const { error } = await sb.auth.signInWithPassword({ email: String(email).trim(), password });
+      if (error) {
+        throw new Error(/confirm/i.test(error.message)
+          ? '이메일 인증이 아직 안 됐어요. 메일함의 인증 링크를 눌러 주세요.'
+          : '이메일 또는 비밀번호가 맞지 않아요.');
+      }
+      await loadMine();
+      return state.me;
     },
-    login(email) {
-      const u = db.users.find((x) => x.email.toLowerCase() === String(email).trim().toLowerCase());
-      if (!u) return null;
-      storage.set(SESSION_KEY, u.id);
-      memSession = u.id;
-      return u;
+    hasDemo: () => !!cfg.DEMO_ACCOUNT,
+    loginDemo() { return api.login(cfg.DEMO_ACCOUNT.email, cfg.DEMO_ACCOUNT.password); },
+    async logout() {
+      await sb.auth.signOut();
+      storage.remove(CLUB_KEY);
+      state.me = null;
+      state.memberships = [];
     },
-    loginDemo() { return api.login('demo@example.com'); },
-    logout() {
-      storage.remove(SESSION_KEY);
-      memSession = null;
-    },
-    signup({ name, email, phone, ntrp }) {
-      if (db.users.some((u) => u.email.toLowerCase() === email.trim().toLowerCase())) {
+    // 이메일 인증을 켜 둔 프로젝트면 { needsConfirm: true }를 돌려줘요.
+    async signup({ name, email, phone, ntrp, password }) {
+      const base = location.href.replace(/[?#].*$/, '').replace(/[^/]*$/, '');
+      const { data, error } = await sb.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          data: { name: name.trim(), phone: phone.trim(), ntrp },
+          emailRedirectTo: `${base}auth.html`,
+        },
+      });
+      if (error) {
+        if (/registered|exists/i.test(error.message)) throw new Error('이미 가입된 이메일이에요.');
+        if (/password/i.test(error.message)) throw new Error('비밀번호는 8자 이상으로 입력해 주세요.');
+        if (/rate limit/i.test(error.message)) throw new Error('잠시 후 다시 시도해 주세요. (메일 발송 한도 초과)');
+        throw new Error('회원가입을 하지 못했어요. 입력값을 확인해 주세요.');
+      }
+      // 이미 가입된 이메일이면 identities가 빈 배열로 와요.
+      if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
         throw new Error('이미 가입된 이메일이에요.');
       }
-      const u = {
-        id: uid('u'), name: name.trim(), email: email.trim(), phone: phone.trim(), ntrp,
-        customerKey: newCustomerKey(), createdAt: dayOffset(0),
-      };
-      db.users.push(u);
-      save();
-      storage.set(SESSION_KEY, u.id);
-      memSession = u.id;
-      return u;
+      if (!data.session) return { needsConfirm: true };
+      await loadMine();
+      return { needsConfirm: false, user: state.me };
     },
-    user: (id) => db.users.find((u) => u.id === id) || null,
+    async updateProfile({ name, phone, ntrp }) {
+      unwrap(await sb.from('profiles').update({ name: name.trim(), phone: phone.trim(), ntrp }).eq('id', state.me.id));
+      await loadMine();
+    },
+    async resetPassword(email) {
+      const base = location.href.replace(/[?#].*$/, '').replace(/[^/]*$/, '');
+      const { error } = await sb.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${base}auth.html?mode=reset` });
+      if (error) throw new Error('메일을 보내지 못했어요. 잠시 후 다시 시도해 주세요.');
+    },
+    async setNewPassword(password) {
+      const { error } = await sb.auth.updateUser({ password });
+      if (error) throw new Error('비밀번호를 바꾸지 못했어요. 8자 이상인지 확인해 주세요.');
+    },
+    onAuthChange(cb) { return sb.auth.onAuthStateChange(cb); },
 
     /* 클럽 */
-    clubs: () => db.clubs.slice(),
-    club: (id) => db.clubs.find((c) => c.id === id) || null,
-    createClub(data) {
-      const me = requireMe();
-      const c = { id: uid('c'), ...data, ownerId: me.id, createdAt: dayOffset(0) };
-      db.clubs.push(c);
-      db.memberships.push({ clubId: c.id, userId: me.id, role: 'owner', status: 'active', joinedAt: dayOffset(0) });
-      ensureDues(c.id);
-      save();
+    async clubs() {
+      const rows = unwrap(await sb.from('clubs').select('*').order('created_at'));
+      return rows.map((r) => {
+        const c = mapClub(r);
+        state.clubs.set(c.id, c);
+        return c;
+      });
+    },
+    async club(id) {
+      const r = unwrap(await sb.from('clubs').select('*').eq('id', id).maybeSingle());
+      const c = mapClub(r);
+      if (c) state.clubs.set(c.id, c);
+      return c || null;
+    },
+    async createClub(data) {
+      const r = unwrap(await sb.rpc('create_club', {
+        p_name: data.name, p_region: data.region, p_court: data.court, p_description: data.desc || '',
+        p_monthly_fee: data.monthlyFee, p_approval: data.approval, p_tone: data.tone,
+      }));
+      await loadMine();
+      return mapClub(r);
+    },
+    async updateClub(id, patch) {
+      const row = {};
+      if ('name' in patch) row.name = patch.name;
+      if ('region' in patch) row.region = patch.region;
+      if ('court' in patch) row.court = patch.court;
+      if ('desc' in patch) row.description = patch.desc;
+      if ('monthlyFee' in patch) row.monthly_fee = patch.monthlyFee;
+      if ('approval' in patch) row.approval = patch.approval;
+      const rows = unwrap(await sb.from('clubs').update(row).eq('id', id).select());
+      if (!rows.length) throw new Error('클럽을 수정할 권한이 없어요.');
+      const c = mapClub(rows[0]);
+      state.clubs.set(c.id, c);
       return c;
     },
-    updateClub(id, patch) {
-      const c = api.club(id);
-      Object.assign(c, patch);
-      save();
-      return c;
-    },
-    membership(clubId, userId = meId()) {
-      return db.memberships.find((x) => x.clubId === clubId && x.userId === userId) || null;
+
+    /* 멤버십 */
+    membership(clubId) {
+      return state.memberships.find((m) => m.clubId === clubId) || null;
     },
     myClubs() {
-      const id = meId();
-      return db.memberships
-        .filter((x) => x.userId === id && x.status === 'active')
-        .map((x) => ({ ...api.club(x.clubId), role: x.role }))
-        .filter((c) => c.id);
+      return state.memberships
+        .filter((m) => m.status === 'active' && state.clubs.has(m.clubId))
+        .map((m) => ({ ...state.clubs.get(m.clubId), role: m.role }));
     },
-    members(clubId, status = 'active') {
-      return db.memberships
-        .filter((x) => x.clubId === clubId && x.status === status)
-        .map((x) => ({ ...api.user(x.userId), role: x.role, status: x.status, joinedAt: x.joinedAt }))
-        .sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role] || a.joinedAt.localeCompare(b.joinedAt));
-    },
-    memberCount: (clubId) => db.memberships.filter((x) => x.clubId === clubId && x.status === 'active').length,
     isAdmin(clubId) {
       const ms = api.membership(clubId);
       return !!ms && ms.status === 'active' && (ms.role === 'owner' || ms.role === 'admin');
@@ -272,33 +252,41 @@
       const ms = api.membership(clubId);
       return !!ms && ms.status === 'active' && ms.role === 'owner';
     },
-    joinClub(clubId) {
-      const me = requireMe();
-      if (api.membership(clubId, me.id)) return api.membership(clubId, me.id).status;
-      const club = api.club(clubId);
-      const status = club.approval === 'auto' ? 'active' : 'pending';
-      db.memberships.push({ clubId, userId: me.id, role: 'member', status, joinedAt: dayOffset(0) });
-      if (status === 'active') ensureDues(clubId);
-      save();
+    // 클럽 회원 목록. clubIds를 배열로 주면 { clubId: [회원…] } 맵을 돌려줘요.
+    async members(clubId, status = 'active') {
+      const ids = Array.isArray(clubId) ? clubId : [clubId];
+      let q = sb.from('memberships').select('club_id, user_id, role, status, joined_at, profiles(id, name, ntrp)').eq('status', status);
+      q = ids.length === 1 ? q.eq('club_id', ids[0]) : q.in('club_id', ids);
+      const rows = unwrap(await q);
+      const byClub = Object.fromEntries(ids.map((id) => [id, []]));
+      rows.forEach((m) => {
+        const u = remember(mapProfile(m.profiles));
+        byClub[m.club_id]?.push({ ...u, role: m.role, status: m.status, joinedAt: tsToYmd(m.joined_at) });
+      });
+      Object.values(byClub).forEach((list) =>
+        list.sort((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role] || a.joinedAt.localeCompare(b.joinedAt)));
+      return Array.isArray(clubId) ? byClub : byClub[clubId];
+    },
+    // 운영진 전용: 회원 이메일·전화번호
+    async memberContacts(clubId) {
+      const rows = unwrap(await sb.rpc('club_member_contacts', { p_club: clubId }));
+      return Object.fromEntries(rows.map((r) => [r.user_id, { email: r.email, phone: r.phone }]));
+    },
+    async joinClub(clubId) {
+      const status = unwrap(await sb.rpc('join_club', { p_club: clubId }));
+      await loadMine();
       return status;
     },
-    leaveClub(clubId, userId = meId()) {
-      db.memberships = db.memberships.filter((x) => !(x.clubId === clubId && x.userId === userId));
-      db.dues = db.dues.filter((d) => !(d.clubId === clubId && d.userId === userId && d.status === 'unpaid'));
-      if (storage.get(CLUB_KEY) === clubId && userId === meId()) storage.remove(CLUB_KEY);
-      save();
+    async leaveClub(clubId) {
+      unwrap(await sb.rpc('leave_club', { p_club: clubId }));
+      if (storage.get(CLUB_KEY) === clubId) storage.remove(CLUB_KEY);
+      await loadMine();
     },
-    approve(clubId, userId) {
-      const ms = api.membership(clubId, userId);
-      ms.status = 'active';
-      ms.joinedAt = dayOffset(0);
-      ensureDues(clubId);
-      save();
-    },
-    reject(clubId, userId) { api.leaveClub(clubId, userId); },
-    setRole(clubId, userId, role) {
-      api.membership(clubId, userId).role = role;
-      save();
+    async approve(clubId, userId) { unwrap(await sb.rpc('approve_member', { p_club: clubId, p_user: userId })); },
+    async reject(clubId, userId) { unwrap(await sb.rpc('reject_member', { p_club: clubId, p_user: userId })); },
+    async kick(clubId, userId) { unwrap(await sb.rpc('kick_member', { p_club: clubId, p_user: userId })); },
+    async setRole(clubId, userId, role) {
+      unwrap(await sb.rpc('set_member_role', { p_club: clubId, p_user: userId, p_role: role }));
     },
     currentClubId() {
       const mine = api.myClubs();
@@ -312,141 +300,136 @@
     },
 
     /* 일정 */
-    games(clubId) {
-      return db.games
-        .filter((x) => x.clubId === clubId)
-        .sort((a, b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start));
+    async games(clubId) {
+      const rows = unwrap(await sb.from('games').select('*, rsvps(user_id, status)')
+        .eq('club_id', clubId).order('date').order('start_time'));
+      const games = rows.map(mapGame);
+      await ensureUsers(games.flatMap((g) => Object.keys(g.rsvps)));
+      return games;
     },
-    game: (id) => db.games.find((x) => x.id === id) || null,
-    createGame(data) {
-      const gm = { id: uid('g'), ...data, rsvps: {} };
-      db.games.push(gm);
-      save();
-      return gm;
+    async upcomingGames(limit = 5) {
+      if (!state.me) return [];
+      const rows = unwrap(await sb.from('games').select('*, rsvps(user_id, status)')
+        .gte('date', api.today()).order('date').order('start_time').limit(limit));
+      const games = rows.map(mapGame);
+      await ensureUsers(games.flatMap((g) => Object.keys(g.rsvps)));
+      return games.map((g) => ({ ...g, club: state.clubs.get(g.clubId) || { name: '' } }));
     },
-    deleteGame(id) {
-      db.games = db.games.filter((x) => x.id !== id);
-      save();
+    async createGame(data) {
+      const r = unwrap(await sb.from('games').insert({
+        club_id: data.clubId, title: data.title, type: data.type, date: data.date,
+        start_time: data.start, end_time: data.end, court: data.court, capacity: data.capacity, memo: data.memo || '',
+      }).select().single());
+      return mapGame(r);
     },
-    rsvp(gameId, status) {
-      const me = requireMe();
-      const gm = api.game(gameId);
-      if (gm.rsvps[me.id] === status) delete gm.rsvps[me.id];
-      else gm.rsvps[me.id] = status;
-      save();
-      return gm.rsvps[me.id] || null;
+    async deleteGame(id) {
+      const rows = unwrap(await sb.from('games').delete().eq('id', id).select('id'));
+      if (!rows.length) throw new Error('일정을 삭제할 권한이 없어요.');
     },
-    upcomingGames(limit = 5) {
-      const today = dayOffset(0);
-      const clubIds = api.myClubs().map((c) => c.id);
-      return db.games
-        .filter((x) => clubIds.includes(x.clubId) && x.date >= today)
-        .sort((a, b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start))
-        .slice(0, limit)
-        .map((x) => ({ ...x, club: api.club(x.clubId) }));
+    // 같은 응답을 다시 누르면 취소돼요. 바뀐 내 응답(또는 null)을 돌려줘요.
+    async rsvp(gameId, status) {
+      return unwrap(await sb.rpc('toggle_rsvp', { p_game: gameId, p_status: status }));
     },
 
     /* 중고거래 */
-    items: () => db.items.slice().sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-    item: (id) => db.items.find((x) => x.id === id) || null,
-    createItem(data) {
-      const me = requireMe();
+    async items() {
+      const rows = unwrap(await sb.from('items').select('*').order('created_at', { ascending: false }));
+      const items = rows.map(mapItem);
+      await ensureUsers(items.map((i) => i.sellerId));
+      return items;
+    },
+    async item(id) {
+      const r = unwrap(await sb.from('items').select('*').eq('id', id).maybeSingle());
+      const item = mapItem(r);
+      if (item) await ensureUsers([item.sellerId]);
+      return item || null;
+    },
+    async createItem(data) {
       const tones = ['court', 'ball', 'clay', 'paper'];
-      const item = {
-        id: uid('i'), sellerId: me.id, status: 'selling', createdAt: dayOffset(0),
-        tone: tones[db.items.length % tones.length], ...data,
-      };
-      db.items.push(item);
-      save();
-      return item;
+      const r = unwrap(await sb.from('items').insert({
+        title: data.title, category: data.category, condition: data.condition, price: data.price,
+        region: data.region, description: data.desc || '', tone: tones[Math.floor(Math.random() * tones.length)],
+      }).select().single());
+      return mapItem(r);
     },
-    updateItem(id, patch) {
-      Object.assign(api.item(id), patch);
-      save();
+    async updateItem(id, patch) {
+      const row = {};
+      ['title', 'category', 'condition', 'price', 'region', 'status'].forEach((k) => { if (k in patch) row[k] = patch[k]; });
+      if ('desc' in patch) row.description = patch.desc;
+      const rows = unwrap(await sb.from('items').update(row).eq('id', id).select());
+      if (!rows.length) throw new Error('상품을 수정할 수 없어요.');
+      return mapItem(rows[0]);
     },
-    deleteItem(id) {
-      db.items = db.items.filter((x) => x.id !== id);
-      save();
+    async deleteItem(id) {
+      const rows = unwrap(await sb.from('items').delete().eq('id', id).select('id'));
+      if (!rows.length) throw new Error('상품을 삭제할 수 없어요.');
     },
 
     /* 회비 */
-    dues(clubId, userId = meId()) {
-      ensureDues(clubId);
-      save();
-      return db.dues
-        .filter((d) => d.clubId === clubId && d.userId === userId)
-        .sort((a, b) => b.period.localeCompare(a.period));
+    async dues(clubId, userId = state.me && state.me.id) {
+      const rows = unwrap(await sb.from('dues').select('*')
+        .eq('club_id', clubId).eq('user_id', userId).order('period', { ascending: false }));
+      return rows.map(mapDue);
     },
-    clubDues(clubId, period) {
-      ensureDues(clubId);
-      save();
-      return api.members(clubId).map((u) => ({
-        user: u,
-        due: db.dues.find((d) => d.clubId === clubId && d.userId === u.id && d.period === period) || null,
-      }));
+    async duesByIds(ids) {
+      const rows = unwrap(await sb.from('dues').select('*').in('id', ids).order('period'));
+      return rows.map(mapDue);
     },
-    duePeriods(clubId) {
-      ensureDues(clubId);
-      return [...new Set(db.dues.filter((d) => d.clubId === clubId).map((d) => d.period))].sort().reverse();
+    // 운영진: 해당 월 활동 회원별 회비 [{ user, due }]
+    async clubDues(clubId, period) {
+      const [members, rows] = await Promise.all([
+        api.members(clubId),
+        sb.from('dues').select('*').eq('club_id', clubId).eq('period', period).then(unwrap),
+      ]);
+      const byUser = Object.fromEntries(rows.map((r) => [r.user_id, mapDue(r)]));
+      return members.map((u) => ({ user: u, due: byUser[u.id] || null }));
     },
-    markDuesPaid(ids, method = '현금(수기)') {
-      db.dues.filter((d) => ids.includes(d.id)).forEach((d) => {
-        d.status = 'paid';
-        d.paidAt = dayOffset(0);
-        d.method = method;
-      });
-      save();
+    async duePeriods(clubId) {
+      const rows = unwrap(await sb.from('dues').select('period').eq('club_id', clubId));
+      return [...new Set(rows.map((r) => r.period))].sort().reverse();
     },
-    unpaidSummary() {
-      const id = meId();
-      api.myClubs().forEach((c) => ensureDues(c.id));
+    async markDuesPaid(ids) {
+      return unwrap(await sb.rpc('mark_dues_paid', { p_ids: ids }));
+    },
+    async unpaidSummary() {
       const clubIds = api.myClubs().map((c) => c.id);
-      const list = db.dues.filter((d) => d.userId === id && d.status === 'unpaid' && clubIds.includes(d.clubId));
-      return { total: list.reduce((s, d) => s + d.amount, 0), count: list.length };
+      if (!state.me || !clubIds.length) return { total: 0, count: 0 };
+      const rows = unwrap(await sb.from('dues').select('amount')
+        .eq('user_id', state.me.id).eq('status', 'unpaid').in('club_id', clubIds));
+      return { total: rows.reduce((s, d) => s + d.amount, 0), count: rows.length };
     },
 
-    /* 주문 (토스페이먼츠 결제 요청 전에 만들어 두는 주문서) */
-    createOrder({ type, refs, amount, orderName }) {
-      const me = requireMe();
-      const order = {
-        orderId: newOrderId(), type, refs, amount, orderName, userId: me.id,
-        status: 'ready', createdAt: new Date().toISOString(), paymentKey: null,
-      };
-      db.orders.push(order);
-      save();
-      return order;
+    /* 주문 (토스페이먼츠 결제 요청 전에 만드는 주문서). 금액은 서버가 계산해요. */
+    async createOrder({ type, refs }) {
+      return mapOrder(unwrap(await sb.rpc('create_order', { p_type: type, p_refs: refs })));
     },
-    order: (orderId) => db.orders.find((o) => o.orderId === orderId) || null,
-    completeOrder(orderId, paymentKey, paymentType) {
-      const order = api.order(orderId);
-      if (!order || order.status === 'done') return order;
-      order.status = 'done';
-      order.paymentKey = paymentKey;
-      order.paymentType = paymentType;
-      order.paidAt = new Date().toISOString();
-      if (order.type === 'dues') {
-        db.dues.filter((d) => order.refs.includes(d.id)).forEach((d) => {
-          d.status = 'paid';
-          d.paidAt = dayOffset(0);
-          d.method = '토스페이먼츠';
-          d.orderId = orderId;
-        });
-      }
-      if (order.type === 'market') {
-        db.items.filter((x) => order.refs.includes(x.id)).forEach((x) => {
-          x.status = 'sold';
-          x.buyerId = order.userId;
-        });
-      }
-      save();
-      return order;
+    async order(orderId) {
+      if (!orderId) return null;
+      const r = unwrap(await sb.from('orders').select('*, order_refs(due_id, item_id)').eq('order_id', orderId).maybeSingle());
+      return mapOrder(r) || null;
     },
-
-    reset() {
-      storage.remove(DB_KEY);
-      storage.remove(SESSION_KEY);
-      storage.remove(CLUB_KEY);
-      db = load();
+    async recordOrderFailure(orderId, code, message) {
+      await sb.rpc('record_order_failure', { p_order_id: orderId, p_code: code, p_message: message });
+    },
+    // Edge Function payments-confirm이 시크릿 키로 토스 승인 API를 불러요.
+    async confirmPayment({ paymentKey, orderId, amount }) {
+      const { data: { session } } = await sb.auth.getSession();
+      if (!session) return { ok: false, code: 'UNAUTHORIZED', message: '로그인이 필요해요.' };
+      try {
+        const res = await fetch(`${cfg.URL}/functions/v1/payments-confirm`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            apikey: cfg.PUBLISHABLE_KEY,
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ paymentKey, orderId, amount }),
+        });
+        return await res.json();
+      } catch (err) {
+        console.error(err);
+        return { ok: false, code: 'NETWORK_ERROR', message: '결제 승인 서버에 연결하지 못했어요. 새로고침해서 다시 시도해 주세요.' };
+      }
     },
   };
 

@@ -130,6 +130,7 @@ ul { margin: 0; padding: 0; list-style: none; }
 .gnb a:hover { color: var(--cream); background: rgba(243, 240, 228, 0.08); }
 .gnb a.is-active { background: var(--ball); color: var(--ink); }
 .header-actions { display: flex; align-items: center; gap: 12px; }
+.user-slot { display: contents; }
 .user-menu { position: relative; }
 .user-chip { display: flex; align-items: center; gap: 10px; height: 44px; padding: 0 16px 0 4px; border-radius: 999px; border: 1px solid var(--on-dark-line); background: transparent; color: var(--cream); font-weight: 600; font-size: 14px; }
 .user-chip:hover { border-color: var(--ball); }
@@ -336,6 +337,9 @@ dialog.modal[open] { animation: pop 0.4s var(--ease); }
 .empty-ball { width: 64px; height: 64px; margin: 0 auto 18px; animation: bounce 1.6s var(--ease) infinite; }
 .empty h3 { font-size: 20px; margin-bottom: 6px; }
 .empty p { color: var(--muted); margin-bottom: 20px; }
+/* 데이터를 기다리는 동안 */
+.loading-state { display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 160px; color: var(--muted); font-size: 14px; grid-column: 1 / -1; }
+.loading-state svg { width: 32px; height: 32px; animation: bounce 1.2s var(--ease) infinite; }
 
 /* ---------- Tabs ---------- */
 .tabs { display: flex; gap: 28px; border-bottom: 1px solid var(--line); margin-bottom: 28px; overflow-x: auto; }

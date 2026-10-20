@@ -1,11 +1,17 @@
-(function () {
+(async function () {
   'use strict';
   const { $, esc, param } = UI;
 
   const code = param('code') || 'UNKNOWN_ERROR';
   const message = param('message') || '결제 중 문제가 생겼어요.';
   const orderId = param('orderId');
-  const order = orderId && TC.order(orderId);
+  await TC.ready;
+  let order = null;
+  if (orderId && TC.me()) {
+    // 실패 사유를 주문에 남겨요. 상태는 ready로 남아서 다시 결제할 수 있어요.
+    await TC.recordOrderFailure(orderId, code, message).catch(() => {});
+    order = await TC.order(orderId).catch(() => null);
+  }
   const canRetry = order && order.status === 'ready';
   const cancelled = code === 'PAY_PROCESS_CANCELED' || code === 'USER_CANCEL';
 

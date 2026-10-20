@@ -1,11 +1,11 @@
-(function () {
+(async function () {
   'use strict';
-  const { $, $$, esc, avatar, courtSVG, toast, param, emptyState, dday, parseYmd, DOW, openModal, closeModal } = UI;
-
-  const me = UI.requireLogin();
-  if (!me) return;
+  const { $, $$, esc, avatar, courtSVG, toast, param, emptyState, dday, parseYmd, DOW, openModal, closeModal, loading, fail, busy } = UI;
 
   $('#hero-court').innerHTML = courtSVG();
+  await TC.ready;
+  const me = UI.requireLogin();
+  if (!me) return;
 
   let clubId = param('club') && TC.membership(param('club'))?.status === 'active' ? param('club') : TC.currentClubId();
   const focusGame = param('game');
@@ -14,14 +14,23 @@
   let view = { y: t.getFullYear(), m: t.getMonth() };
   let selected = null;
   let range = 'upcoming';
+  let games = [];
+  const findGame = (id) => games.find((g) => g.id === id) || null;
+  async function loadGames() {
+    games = await TC.games(clubId);
+  }
 
   if (!clubId) {
     $('#sched-root').innerHTML = emptyState('가입한 클럽이 없어요', '클럽에 가입하면 경기 일정을 볼 수 있어요.',
       '<a class="btn btn-court" href="clubs.html">클럽 둘러보기</a>');
     return;
   }
-  if (focusGame && TC.game(focusGame)) {
-    selected = TC.game(focusGame).date;
+  $('#game-list').innerHTML = loading('일정을 불러오는 중이에요');
+  try {
+    await loadGames();
+  } catch (err) { fail(err); }
+  if (focusGame && findGame(focusGame)) {
+    selected = findGame(focusGame).date;
     const d = parseYmd(selected);
     view = { y: d.getFullYear(), m: d.getMonth() };
   }
@@ -31,16 +40,19 @@
   const TYPE_BADGE = { 정기전: 'badge-dark', 연습: 'badge-line', 대회: 'badge-clay', 교류전: 'badge-ball', 레슨: 'badge' };
 
   function renderPills() {
-    UI.clubPills($('#club-pills'), clubId, (id) => {
+    UI.clubPills($('#club-pills'), clubId, async (id) => {
       clubId = id;
       TC.setCurrentClub(id);
       selected = null;
+      $('#game-list').innerHTML = loading('일정을 불러오는 중이에요');
+      try {
+        await loadGames();
+      } catch (err) { fail(err); }
       render();
     });
   }
 
   function renderCal() {
-    const games = TC.games(clubId);
     const counts = games.reduce((acc, g) => { acc[g.date] = (acc[g.date] || 0) + 1; return acc; }, {});
     const first = new Date(view.y, view.m, 1);
     const start = new Date(first);
@@ -70,7 +82,7 @@
     const d = parseYmd(g.date);
     const past = g.date < today;
     const groups = { yes: [], maybe: [], no: [] };
-    Object.entries(g.rsvps).forEach(([uid, s]) => { const u = TC.user(uid); if (u && groups[s]) groups[s].push(u); });
+    Object.entries(g.rsvps).forEach(([uid, st]) => { const u = TC.user(uid); if (u && groups[st]) groups[st].push(u); });
     const mine = g.rsvps[me.id];
     const yes = groups.yes.length;
     const maybe = groups.maybe.length;
@@ -124,17 +136,17 @@
   }
 
   function renderList() {
-    let games = TC.games(clubId);
+    let list = games;
     let caption;
     if (selected) {
-      games = games.filter((g) => g.date === selected);
+      list = list.filter((g) => g.date === selected);
       caption = `${UI.dateLabel(selected)} 일정 · <button class="link-btn" type="button" data-clear>전체 보기</button>`;
     } else if (range === 'upcoming') {
-      games = games.filter((g) => g.date >= today);
-      caption = `${games.length}개의 일정`;
+      list = list.filter((g) => g.date >= today);
+      caption = `${list.length}개의 일정`;
     } else {
-      games = games.filter((g) => g.date < today).reverse();
-      caption = `${games.length}개의 지난 일정`;
+      list = list.filter((g) => g.date < today).reverse();
+      caption = `${list.length}개의 지난 일정`;
     }
     $$('#range [data-range]').forEach((b) => {
       const on = !selected && b.dataset.range === range;
@@ -142,8 +154,8 @@
       b.setAttribute('aria-pressed', String(on));
     });
     $('#list-caption').innerHTML = caption;
-    $('#game-list').innerHTML = games.length
-      ? games.map(gameCard).join('')
+    $('#game-list').innerHTML = list.length
+      ? list.map(gameCard).join('')
       : emptyState(selected ? '이 날은 일정이 없어요' : '일정이 없어요',
         TC.isAdmin(clubId) ? '새 일정을 등록해 회원들에게 알려 주세요.' : '운영진이 일정을 등록하면 여기에 보여요.',
         TC.isAdmin(clubId) ? '<button class="btn btn-court" type="button" data-add>+ 새 일정 등록</button>' : '');
@@ -188,7 +200,7 @@
     f.reset();
     f.elements.date.value = selected && selected >= today ? selected : today;
     f.elements.date.min = today;
-    f.elements.court.value = TC.club(clubId).court;
+    f.elements.court.value = TC.myClubs().find((c) => c.id === clubId)?.court || '';
     openModal('game-modal');
   }
   $('#add-game').addEventListener('click', openAdd);
@@ -202,17 +214,30 @@
     if (e.target.closest('[data-add]')) return openAdd();
     const r = e.target.closest('[data-rsvp]');
     if (r) {
-      const status = TC.rsvp(r.dataset.rsvp, r.dataset.status);
-      toast(status ? `'${RSVP.find(([k]) => k === status)[1]}'으로 응답했어요.` : '응답을 취소했어요.');
-      return renderList();
+      busy(r, async () => {
+        try {
+          const status = await TC.rsvp(r.dataset.rsvp, r.dataset.status);
+          toast(status ? `'${RSVP.find(([k]) => k === status)[1]}'으로 응답했어요.` : '응답을 취소했어요.');
+        } catch (err) { fail(err); }
+        try {
+          await loadGames();
+        } catch (err) { fail(err); }
+        renderList();
+      });
+      return;
     }
     const del = e.target.closest('[data-del]');
     if (del) {
-      const g = TC.game(del.dataset.del);
-      if (!confirm(`'${g.title}' 일정을 삭제할까요? 참석 응답도 함께 지워져요.`)) return;
-      TC.deleteGame(g.id);
-      toast('일정을 삭제했어요.');
-      render();
+      const g = findGame(del.dataset.del);
+      if (!g || !confirm(`'${g.title}' 일정을 삭제할까요? 참석 응답도 함께 지워져요.`)) return;
+      busy(del, async () => {
+        try {
+          await TC.deleteGame(g.id);
+          toast('일정을 삭제했어요.');
+          await loadGames();
+          render();
+        } catch (err) { fail(err); }
+      });
     }
   });
 
@@ -228,16 +253,21 @@
       toast('종료 시간이 시작 시간보다 늦어야 해요.', 'error');
       return;
     }
-    const g = TC.createGame({
-      clubId, title: v('title'), type: v('type'), date: v('date'), start: v('start'), end: v('end'),
-      court: v('court'), capacity: Math.max(2, Number(v('capacity')) || 12), memo: v('memo'),
+    busy(f.querySelector('[type=submit]'), async () => {
+      try {
+        const g = await TC.createGame({
+          clubId, title: v('title'), type: v('type'), date: v('date'), start: v('start'), end: v('end'),
+          court: v('court'), capacity: Math.min(64, Math.max(2, Number(v('capacity')) || 12)), memo: v('memo'),
+        });
+        closeModal('game-modal');
+        toast('새 일정을 등록했어요.');
+        selected = g.date;
+        const d = parseYmd(g.date);
+        view = { y: d.getFullYear(), m: d.getMonth() };
+        await loadGames();
+        render();
+      } catch (err) { fail(err); }
     });
-    closeModal('game-modal');
-    toast('새 일정을 등록했어요.');
-    selected = g.date;
-    const d = parseYmd(g.date);
-    view = { y: d.getFullYear(), m: d.getMonth() };
-    render();
   });
 
   render();

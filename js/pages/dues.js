@@ -1,11 +1,11 @@
-(function () {
+(async function () {
   'use strict';
-  const { $, esc, won, avatar, courtSVG, toast, param, emptyState, dateLabel, periodLabel } = UI;
-
-  const me = UI.requireLogin();
-  if (!me) return;
+  const { $, esc, won, avatar, courtSVG, toast, param, emptyState, dateLabel, periodLabel, loading, fail, busy } = UI;
 
   $('#hero-court').innerHTML = courtSVG();
+  await TC.ready;
+  const me = UI.requireLogin();
+  if (!me) return;
 
   let clubId = param('club') && TC.membership(param('club'))?.status === 'active' ? param('club') : TC.currentClubId();
   let checked = new Set();
@@ -17,12 +17,32 @@
     return;
   }
 
+  // 내 회비와(운영진이면) 월별 납부 현황을 불러와요.
+  let myDues = [];
+  let periods = [];
+  let adminRows = [];
+  async function loadMine() {
+    myDues = await TC.dues(clubId);
+  }
+  async function loadAdmin() {
+    if (!TC.isAdmin(clubId)) return;
+    periods = await TC.duePeriods(clubId);
+    if (!periods.includes(adminPeriod)) adminPeriod = periods[0] || TC.periodOf(0);
+    adminRows = await TC.clubDues(clubId, adminPeriod);
+  }
+  async function loadAll() {
+    $('#due-list').innerHTML = loading('회비를 불러오는 중이에요');
+    try {
+      await Promise.all([loadMine(), loadAdmin()]);
+    } catch (err) { fail(err); }
+  }
+
   function resetChecked() {
-    checked = new Set(TC.dues(clubId).filter((d) => d.status === 'unpaid').map((d) => d.id));
+    checked = new Set(myDues.filter((d) => d.status === 'unpaid').map((d) => d.id));
   }
 
   function renderList() {
-    const dues = TC.dues(clubId);
+    const dues = myDues;
     const unpaid = dues.filter((d) => d.status === 'unpaid');
     $('#toggle-all').hidden = !unpaid.length;
     $('#toggle-all').textContent = unpaid.length && unpaid.every((d) => checked.has(d.id)) ? '선택 해제' : '미납 전체 선택';
@@ -42,8 +62,8 @@
   }
 
   function renderSummary() {
-    const club = TC.club(clubId);
-    const dues = TC.dues(clubId).filter((d) => checked.has(d.id));
+    const club = TC.myClubs().find((c) => c.id === clubId);
+    const dues = myDues.filter((d) => checked.has(d.id));
     const total = dues.reduce((s, d) => s + d.amount, 0);
     $('#pay-summary').innerHTML = `
       ${courtSVG('court-art')}
@@ -69,9 +89,7 @@
       return;
     }
     box.hidden = false;
-    const periods = TC.duePeriods(clubId);
-    if (!periods.includes(adminPeriod)) adminPeriod = periods[0];
-    const rows = TC.clubDues(clubId, adminPeriod);
+    const rows = adminRows;
     const paid = rows.filter((r) => r.due && r.due.status === 'paid');
     const unpaidRows = rows.filter((r) => r.due && r.due.status === 'unpaid');
     const rate = rows.length ? paid.length / rows.length : 0;
@@ -116,9 +134,10 @@
   }
 
   function render() {
-    UI.clubPills($('#club-pills'), clubId, (id) => {
+    UI.clubPills($('#club-pills'), clubId, async (id) => {
       clubId = id;
       TC.setCurrentClub(id);
+      await loadAll();
       resetChecked();
       render();
     });
@@ -135,12 +154,12 @@
     else checked.delete(cb.dataset.due);
     cb.closest('.due-row').classList.toggle('is-checked', cb.checked);
     renderSummary();
-    const unpaid = TC.dues(clubId).filter((d) => d.status === 'unpaid');
+    const unpaid = myDues.filter((d) => d.status === 'unpaid');
     $('#toggle-all').textContent = unpaid.every((d) => checked.has(d.id)) ? '선택 해제' : '미납 전체 선택';
   });
 
   $('#toggle-all').addEventListener('click', () => {
-    const unpaid = TC.dues(clubId).filter((d) => d.status === 'unpaid');
+    const unpaid = myDues.filter((d) => d.status === 'unpaid');
     if (unpaid.every((d) => checked.has(d.id))) checked.clear();
     else unpaid.forEach((d) => checked.add(d.id));
     renderList();
@@ -149,37 +168,49 @@
   });
 
   $('#pay-summary').addEventListener('click', (e) => {
-    if (!e.target.closest('#pay-btn')) return;
-    const club = TC.club(clubId);
-    const dues = TC.dues(clubId).filter((d) => checked.has(d.id) && d.status === 'unpaid')
-      .sort((a, b) => a.period.localeCompare(b.period));
+    const btn = e.target.closest('#pay-btn');
+    if (!btn) return;
+    const dues = myDues.filter((d) => checked.has(d.id) && d.status === 'unpaid');
     if (!dues.length) return;
-    const total = dues.reduce((s, d) => s + d.amount, 0);
-    const orderName = `${club.name} ${periodLabel(dues[0].period)} 회비${dues.length > 1 ? ` 외 ${dues.length - 1}건` : ''}`;
-    // 결제 금액을 주문서에 저장해 두고, 결제 후 successUrl의 amount와 비교해요.
-    const order = TC.createOrder({ type: 'dues', refs: dues.map((d) => d.id), amount: total, orderName: orderName.slice(0, 100) });
-    location.href = `checkout.html?orderId=${encodeURIComponent(order.orderId)}`;
+    // 주문서는 서버가 회비 금액을 더해서 만들어요. 결제 후 successUrl의 amount와 비교해요.
+    busy(btn, async () => {
+      try {
+        const order = await TC.createOrder({ type: 'dues', refs: dues.map((d) => d.id) });
+        location.href = `checkout.html?orderId=${encodeURIComponent(order.orderId)}`;
+      } catch (err) {
+        fail(err);
+        await loadAll();
+        resetChecked();
+        render();
+      }
+    });
   });
 
   $('#admin-box').addEventListener('change', (e) => {
     if (e.target.id !== 'period-sel') return;
     adminPeriod = e.target.value;
-    renderAdmin();
+    loadAdmin().then(renderAdmin, fail);
   });
   $('#admin-box').addEventListener('click', (e) => {
     if (e.target.closest('#remind')) {
-      toast('미납 회원에게 납부 알림을 보냈어요. (시안: 실제 발송 없음)');
+      toast('알림 발송은 준비 중이에요. 지금은 연락처로 직접 안내해 주세요.');
       return;
     }
     const m = e.target.closest('[data-manual]');
     if (m) {
-      TC.markDuesPaid([m.dataset.manual]);
-      checked.delete(m.dataset.manual);
-      toast('현금 납부로 처리했어요.');
-      render();
+      busy(m, async () => {
+        try {
+          await TC.markDuesPaid([m.dataset.manual]);
+          checked.delete(m.dataset.manual);
+          toast('현금 납부로 처리했어요.');
+        } catch (err) { fail(err); }
+        await loadAll();
+        render();
+      });
     }
   });
 
+  await loadAll();
   resetChecked();
   render();
 })();

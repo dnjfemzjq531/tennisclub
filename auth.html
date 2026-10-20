@@ -46,7 +46,67 @@
           </form>
           <div class="divider">또는</div>
           <button class="btn btn-ball btn-block" type="button" id="demo-login">데모 계정으로 둘러보기</button>
-          <p class="hint" style="margin-top:14px">퍼블리싱 시안이라 비밀번호는 검사하지 않아요. 데모 이메일: demo@example.com</p>
+          <p class="hint" style="margin-top:14px;text-align:center"><button class="link-btn" type="button" data-show="forgot">비밀번호를 잊었어요</button></p>
+        </div>
+
+        <!-- 비밀번호 재설정 메일 -->
+        <div data-panel="forgot" hidden>
+          <h2>비밀번호 찾기.</h2>
+          <p class="muted" style="margin-bottom:28px">가입한 이메일로 재설정 링크를 보내드려요.</p>
+          <form id="forgot-form" novalidate>
+            <div class="field">
+              <label for="fg-email">이메일</label>
+              <input class="input" id="fg-email" name="email" type="email" autocomplete="email" placeholder="you@example.com" required>
+            </div>
+            <button class="btn btn-court btn-lg btn-block" type="submit">재설정 메일 보내기 <span class="arr">→</span></button>
+          </form>
+          <p class="hint" style="margin-top:14px;text-align:center"><button class="link-btn" type="button" data-show="login">로그인으로 돌아가기</button></p>
+        </div>
+
+        <!-- 새 비밀번호 (재설정 메일 링크로 들어왔을 때) -->
+        <div data-panel="newpw" hidden>
+          <h2>새 비밀번호.</h2>
+          <p class="muted" style="margin-bottom:28px">앞으로 쓸 비밀번호를 입력해 주세요.</p>
+          <form id="newpw-form" novalidate>
+            <div class="field">
+              <label for="np-pw">새 비밀번호</label>
+              <input class="input" id="np-pw" name="password" type="password" autocomplete="new-password" placeholder="8자 이상" minlength="8" required>
+            </div>
+            <button class="btn btn-court btn-lg btn-block" type="submit">비밀번호 바꾸기 <span class="arr">→</span></button>
+          </form>
+        </div>
+
+        <!-- 내 정보 수정 -->
+        <div data-panel="profile" hidden>
+          <h2>내 정보.</h2>
+          <p class="muted" style="margin-bottom:28px" id="pf-email"></p>
+          <form id="profile-form" novalidate>
+            <div class="form-grid">
+              <div class="field">
+                <label for="pf-name">이름 <span class="req">*</span></label>
+                <input class="input" id="pf-name" name="name" autocomplete="name" maxlength="30" required>
+              </div>
+              <div class="field">
+                <label for="pf-ntrp">실력 (NTRP)</label>
+                <select class="select" id="pf-ntrp" name="ntrp">
+                  <option value="1.5">1.5 · 입문</option>
+                  <option value="2.0">2.0</option>
+                  <option value="2.5">2.5 · 초급</option>
+                  <option value="3.0">3.0</option>
+                  <option value="3.5">3.5 · 중급</option>
+                  <option value="4.0">4.0</option>
+                  <option value="4.5">4.5 · 상급</option>
+                  <option value="5.0">5.0+</option>
+                </select>
+              </div>
+              <div class="field span-2">
+                <label for="pf-phone">휴대폰 번호 <span class="req">*</span></label>
+                <input class="input" id="pf-phone" name="phone" type="tel" autocomplete="tel" pattern="01[0-9]-?[0-9]{3,4}-?[0-9]{4}" required>
+                <span class="hint">같은 클럽 운영진에게만 보여요.</span>
+              </div>
+            </div>
+            <button class="btn btn-court btn-lg btn-block" type="submit">저장하기 <span class="arr">→</span></button>
+          </form>
         </div>
 
         <!-- 회원가입 -->
@@ -57,7 +117,7 @@
             <div class="form-grid">
               <div class="field">
                 <label for="su-name">이름 <span class="req">*</span></label>
-                <input class="input" id="su-name" name="name" autocomplete="name" placeholder="홍길동" required>
+                <input class="input" id="su-name" name="name" autocomplete="name" placeholder="홍길동" maxlength="30" required>
               </div>
               <div class="field">
                 <label for="su-ntrp">실력 (NTRP)</label>
@@ -95,6 +155,8 @@
     </section>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.49.4/dist/umd/supabase.js"></script>
+  <script src="js/supabase-config.js"></script>
   <script src="js/store.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/pages/auth.js"></script>
