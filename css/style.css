@@ -402,6 +402,25 @@ dialog.modal[open] { animation: pop 0.4s var(--ease); }
 .cta-band .court-art { position: absolute; z-index: -1; width: 80%; right: -20%; top: -10%; color: rgba(255, 255, 255, 0.2); transform: rotate(14deg); }
 @media (max-width: 720px) { .cta-band { grid-template-columns: 1fr; padding: 48px 24px; border-radius: 28px; } }
 
+#faq { scroll-margin-top: var(--header-h); }
+.faq-list { border-top: 1.5px solid var(--line-strong); }
+.faq-item { border-bottom: 1.5px solid var(--line-strong); }
+.faq-item summary { display: grid; grid-template-columns: 56px 1fr 44px; gap: 16px; align-items: center; padding: 26px 0; cursor: pointer; list-style: none; }
+.faq-item summary::-webkit-details-marker { display: none; }
+.faq-item .q { font-family: var(--font-mono); font-size: 14px; color: var(--muted); }
+.faq-item h3 { font-size: clamp(18px, 2vw, 24px); font-weight: 800; letter-spacing: -0.03em; }
+.faq-item .ic { width: 44px; height: 44px; border-radius: 50%; border: 1.5px solid currentColor; display: grid; place-items: center; font-size: 22px; transition: transform 0.4s var(--ease), background 0.3s; }
+.faq-item summary:hover .ic { background: var(--ball); border-color: var(--ball); }
+.faq-item[open] .ic { transform: rotate(45deg); background: var(--ball); border-color: var(--ball); }
+.faq-item p { padding: 0 60px 28px 72px; color: var(--muted); max-width: 900px; }
+.faq-item p a { color: var(--court-2); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+@media (max-width: 600px) {
+  .faq-item summary { grid-template-columns: 1fr 36px; gap: 12px; padding: 20px 0; }
+  .faq-item .q { display: none; }
+  .faq-item .ic { width: 36px; height: 36px; font-size: 18px; }
+  .faq-item p { padding: 0 0 22px; }
+}
+
 /* ================= AUTH ================= */
 .auth { display: grid; grid-template-columns: 1.05fr 1fr; min-height: calc(100svh - var(--header-h)); }
 .auth-art { position: relative; overflow: hidden; background: var(--court); color: var(--cream); padding: 56px; display: flex; flex-direction: column; justify-content: space-between; gap: 40px; isolation: isolate; }
