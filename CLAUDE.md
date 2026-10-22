@@ -50,6 +50,14 @@ supabase-js(CDN, 버전 고정)  →  js/supabase-config.js  →  js/store.js  �
 - 클라이언트 키는 `js/toss-config.js`(토스 문서용 공개 테스트 키). 시크릿 키는 Edge Function 시크릿 `TOSS_SECRET_KEY`로 넣고, 없으면 문서용 공개 테스트 시크릿 키를 써요. 시크릿 키는 브라우저 코드에 절대 넣지 않아요.
 - 토스페이먼츠 연동 문서는 `.mcp.json`에 등록된 `tosspayments-integration-guide` MCP 서버로 찾아볼 수 있어요.
 
+### 도우미 챗봇 (랠리봇)
+
+- `js/ui.js`의 `mountChat()`이 모든 페이지 오른쪽 아래에 [도움말] 버튼과 대화창을 붙여요. 대화는 `sessionStorage`(`rallyclub_chat_v1`)에만 남아요.
+- `TC.chat(messages, page)` → Edge Function `chat`(verify_jwt 끔, 로그인은 선택). RAG 구조예요: 최근 질문 두 개를 **Upstage 임베딩**(`embedding-query`, 4096차원)으로 바꿔 `match_kb` RPC로 `kb_chunks`에서 가까운 안내 6조각을 찾고, **OpenAI**가 답해요(실패하면 Upstage Solar). Upstage 임베딩이 안 되면 `KNOWLEDGE` 전체를 보내요. 응답의 `kb`(`rag`/`full`)와 `provider`로 어떤 경로였는지 알 수 있어요.
+- `kb_chunks`(서비스 롤 전용, 마이그레이션 `20261022000001_kb_chunks.sql`): `source = 'builtin'` 행은 함수가 인스턴스마다 처음 한 번 `KNOWLEDGE`를 조각내 checksum으로 맞춰요(바뀐 조각만 지우고 넣어요). `manual` 행은 대시보드 Table Editor에서 title·content만 넣으면 돼요. 임베딩이 빈 행은 다음 챗봇 요청 때 `embedding-passage`로 채우고, 제목·내용을 고치면 트리거가 임베딩을 비워 다시 만들어요. 로그인했으면 함수가 서비스 롤로 **본인의** 클럽·미납 회비·최근 주문 10건·판매/구매 상품을 읽어 상황 정보로 붙여서, 결제 실패·중복 결제를 주문 상태로 진단해요. 챗봇은 읽기만 하고 데이터를 바꾸지 않아요.
+- 기본 사용 안내는 함수 안의 `KNOWLEDGE` 문자열이에요(`## 구역` 단위, 700자 넘는 구역은 `- ` 항목마다 조각). 화면 문구·버튼 이름·권한 규칙·결제 정책을 바꾸면 여기도 고치고 함수를 다시 배포해요.
+- 키는 Edge Function 시크릿 `UPSTAGE_API`, `OPEN_AI_API`. 모델은 선택 시크릿 `UPSTAGE_MODEL`(기본 `solar-pro2`), `OPENAI_MODEL`(기본 `gpt-4o-mini`). 로컬 값은 git에 안 올라가는 `.env`에 있고 `npx supabase secrets set --env-file .env --project-ref fnbwfnamydzuorqetbod`로 올려요.
+
 ## SEO · AEO · GEO
 
 - 공개 페이지(`index`, `clubs`, `schedule`, `market`, `dues`)는 `<head>`에 description, canonical(`https://tennisclub-peach.vercel.app/...`), OG/Twitter(`assets/og-image.png` 1200×630), JSON-LD를 둬요. 홈은 `WebSite`·`Organization`·`WebApplication`·`FAQPage`, 나머지는 `WebPage` + `BreadcrumbList`예요.

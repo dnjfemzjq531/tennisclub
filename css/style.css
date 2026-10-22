@@ -637,6 +637,41 @@ dialog.modal[open] { animation: pop 0.4s var(--ease); }
 .dev-note h4 { font-size: 14px; margin-bottom: 8px; color: var(--ball); }
 .dev-note pre { margin: 12px 0 0; padding: 14px; border-radius: 12px; background: rgba(255, 255, 255, 0.06); overflow-x: auto; font-family: var(--font-mono); font-size: 12px; line-height: 1.6; }
 
+/* ================= CHATBOT ================= */
+.chat-fab { position: fixed; right: 24px; bottom: 24px; z-index: 250; display: flex; align-items: center; gap: 10px; height: 56px; padding: 0 22px 0 10px; border: 0; border-radius: 999px; background: var(--court); color: var(--cream); font-weight: 700; font-size: 15px; box-shadow: var(--shadow); transition: transform 0.25s var(--ease), background 0.2s; }
+.chat-fab:hover { background: var(--court-2); transform: translateY(-2px); }
+.chat-fab-ball { width: 38px; height: 38px; }
+.chat-fab[aria-expanded="true"] { display: none; }
+.chat-panel { position: fixed; right: 24px; bottom: 24px; z-index: 250; display: flex; flex-direction: column; width: 380px; height: min(620px, calc(100vh - 48px)); border-radius: var(--radius); background: var(--paper); box-shadow: var(--shadow), 0 0 0 1px var(--line); overflow: hidden; animation: pop 0.35s var(--ease); }
+.chat-head { display: flex; align-items: center; gap: 10px; padding: 14px 12px 14px 16px; background: var(--court); color: var(--cream); }
+.chat-head > div { flex: 1; display: grid; line-height: 1.3; }
+.chat-head small { color: var(--on-dark-muted); font-size: 12px; }
+.chat-ball { width: 32px; height: 32px; flex: none; }
+.chat-icon { width: 36px; height: 36px; border: 0; border-radius: 50%; background: transparent; color: var(--cream); font-size: 17px; }
+.chat-icon:hover { background: rgba(243, 240, 228, 0.12); }
+.chat-body { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding: 16px; overscroll-behavior: contain; }
+.chat-msg { max-width: 88%; padding: 11px 14px; border-radius: 18px; font-size: 14px; line-height: 1.6; overflow-wrap: anywhere; }
+.chat-msg.bot { align-self: flex-start; background: var(--cream); border-bottom-left-radius: 6px; }
+.chat-msg.me { align-self: flex-end; background: var(--court); color: var(--cream); border-bottom-right-radius: 6px; }
+.chat-key { display: inline-block; padding: 0 7px; border-radius: 6px; background: var(--ball); font-weight: 700; font-size: 13px; }
+.chat-copy { display: block; margin-top: 10px; height: 32px; padding: 0 14px; border: 1.5px solid var(--line-strong); border-radius: 999px; background: transparent; font-weight: 700; font-size: 12px; }
+.chat-copy:hover { background: var(--ink); color: var(--cream); }
+.chat-topics { display: flex; flex-wrap: wrap; gap: 6px; }
+.chat-topics .pill { height: 34px; padding: 0 13px; font-size: 13px; background: var(--paper); }
+.chat-typing { display: flex; gap: 5px; padding: 14px 16px; }
+.chat-typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); animation: typing 1s infinite; }
+.chat-typing i:nth-child(2) { animation-delay: 0.15s; }
+.chat-typing i:nth-child(3) { animation-delay: 0.3s; }
+.chat-form { display: flex; align-items: flex-end; gap: 8px; padding: 12px; border-top: 1px solid var(--line); background: var(--paper); }
+.chat-form textarea { flex: 1; min-height: 42px; max-height: 120px; padding: 10px 14px; border: 1.5px solid var(--line); border-radius: var(--radius-sm); background: #fff; resize: none; font-size: 14px; line-height: 1.5; }
+.chat-form textarea:focus { outline: none; border-color: var(--court); }
+.chat-form .btn { width: 42px; height: 42px; padding: 0; font-size: 18px; flex: none; }
+.chat-form .btn:disabled { opacity: 0.5; cursor: wait; }
+@media (max-width: 600px) {
+  .chat-fab { right: 16px; bottom: 16px; height: 52px; padding: 0 18px 0 8px; }
+  .chat-panel { right: 0; bottom: 0; width: 100%; height: 100%; height: 100dvh; border-radius: 0; }
+}
+
 /* ---------- Cursor ---------- */
 .cursor { position: fixed; top: 0; left: 0; z-index: 999; width: 14px; height: 14px; border-radius: 50%; background: var(--ball); box-shadow: 0 0 0 1.5px var(--ink); pointer-events: none; transition: width 0.3s var(--ease), height 0.3s var(--ease), opacity 0.3s; opacity: 0.95; }
 .cursor.is-hover { width: 44px; height: 44px; opacity: 0.55; }
@@ -654,6 +689,7 @@ dialog.modal[open] { animation: pop 0.4s var(--ease); }
 @keyframes marquee { to { transform: translateX(-50%); } }
 @keyframes pop { from { opacity: 0; transform: translateY(16px) scale(0.97); } to { opacity: 1; transform: none; } }
 @keyframes toastIn { from { opacity: 0; transform: translateY(16px); } }
+@keyframes typing { 0%, 60%, 100% { transform: none; opacity: 0.4; } 30% { transform: translateY(-4px); opacity: 1; } }
 @keyframes cue { 0%, 100% { transform: scaleY(0.4); transform-origin: top; } 50% { transform: scaleY(1); transform-origin: top; } }
 @keyframes bounce {
   0%, 100% { transform: translateY(0) scale(1, 1); animation-timing-function: cubic-bezier(0.3, 0, 0.7, 0.2); }

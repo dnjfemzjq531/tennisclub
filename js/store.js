@@ -431,6 +431,25 @@
         return { ok: false, code: 'NETWORK_ERROR', message: '결제 승인 서버에 연결하지 못했어요. 새로고침해서 다시 시도해 주세요.' };
       }
     },
+
+    /* 도우미 챗봇. Edge Function chat이 OpenAI를 불러요. 로그인했으면 내 주문·회비도 같이 봐요. */
+    async chat(messages, page) {
+      const { data: { session } } = await sb.auth.getSession();
+      const headers = { 'Content-Type': 'application/json', apikey: cfg.PUBLISHABLE_KEY };
+      if (session) headers.Authorization = `Bearer ${session.access_token}`;
+      let res;
+      try {
+        res = await fetch(`${cfg.URL}/functions/v1/chat`, {
+          method: 'POST', headers, body: JSON.stringify({ messages, page }),
+        });
+      } catch (err) {
+        console.error(err);
+        throw new Error('챗봇 서버에 연결하지 못했어요. 인터넷 연결을 확인해 주세요.');
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!data.ok) throw new Error(data.message || '답변을 받지 못했어요. 잠시 후 다시 시도해 주세요.');
+      return data.reply;
+    },
   };
 
   global.TC = api;

@@ -37,9 +37,16 @@ js/toss-config.js             토스페이먼츠 클라이언트 키
 js/pages/*.js                 페이지별 스크립트
 supabase/migrations/*.sql     테이블 · RLS · RPC · 크론
 supabase/functions/payments-confirm   결제 승인 Edge Function
+supabase/functions/chat       도우미 챗봇(랠리봇) Edge Function — OpenAI
 supabase/seed.sql             데모 데이터
 PRD.md                        Supabase 연동 요구사항과 진행 상황
 ```
+
+## 도우미 챗봇
+
+모든 페이지 오른쪽 아래 [도움말] 버튼으로 랠리봇에게 물어봐요. 클럽 만들기·회원 관리, 로그인·비밀번호·화면 오류, 결제 오류·중복 결제·중고거래 문제를 안내하고, 로그인했으면 내 주문 상태를 보고 진단해요. 운영팀 문의가 필요하면 복사할 수 있는 문의 요약을 만들어 줘요.
+
+질문을 Upstage로 임베딩해 Supabase(pgvector) `kb_chunks`에서 관련 안내만 찾고, ChatGPT(OpenAI)가 그 안내로 답해요(RAG). 안내를 더 넣으려면 대시보드 Table Editor → `kb_chunks`에 제목·내용만 추가하면 다음 질문부터 반영돼요. 키는 Edge Function 시크릿 `UPSTAGE_API`, `OPEN_AI_API`로 넣어요(Supabase 대시보드 → Edge Functions → Secrets, 또는 `.env` → `npx supabase secrets set --env-file .env --project-ref fnbwfnamydzuorqetbod`).
 
 ## 결제 흐름
 

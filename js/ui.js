@@ -334,6 +334,149 @@
     els.forEach((el) => io.observe(el));
   }
 
+  /* ---------- 도우미 챗봇 (랠리봇) ---------- */
+  const CHAT_KEY = 'rallyclub_chat_v1';
+  const CHAT_TOPICS = [
+    ['클럽 만들기', '테니스 클럽은 어떻게 만들어요?'],
+    ['회원 관리', '가입 승인, 역할 변경, 회원 내보내기는 어떻게 해요?'],
+    ['로그인 오류', '로그인이 안 돼요.'],
+    ['비밀번호 찾기', '비밀번호를 잊어버렸어요.'],
+    ['결제 오류', '결제하다가 오류가 났어요. 제 주문 상태를 확인해 주세요.'],
+    ['중복 결제', '같은 걸 두 번 결제한 것 같아요.'],
+    ['중고거래 문제', '중고거래하다가 문제가 생겼어요.'],
+  ];
+  const PAYMENT_PAGES = ['checkout', 'success', 'fail', 'market', 'dues'];
+  let chatLog = [];
+  let chatBusy = false;
+
+  const chatLoad = () => {
+    try { chatLog = JSON.parse(sessionStorage.getItem(CHAT_KEY)) || []; } catch (e) { chatLog = []; }
+  };
+  const chatSave = () => {
+    try { sessionStorage.setItem(CHAT_KEY, JSON.stringify(chatLog.slice(-30))); } catch (e) { /* 저장 불가 */ }
+  };
+
+  // 답변은 글자만 받아서 굵게(**), [버튼 이름], 줄바꿈만 꾸며요.
+  const chatFormat = (text) => esc(text)
+    .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+    .replace(/\[([^\]\n]{1,24})\]/g, '<span class="chat-key">$1</span>')
+    .replace(/\n/g, '<br>');
+
+  function chatMessages() {
+    const page = document.body.dataset.page;
+    const topics = PAYMENT_PAGES.includes(page)
+      ? [...CHAT_TOPICS.slice(4), ...CHAT_TOPICS.slice(0, 4)]
+      : CHAT_TOPICS;
+    const intro = `<div class="chat-msg bot">안녕하세요, 랠리봇이에요. 클럽 운영, 로그인·오류, 결제·중고거래 문제를 도와드려요. 로그인하면 내 주문 상태도 같이 확인해요.</div>
+      <div class="chat-topics">${topics.map(([label, q]) =>
+        `<button type="button" class="pill" data-chat-ask="${esc(q)}">${label}</button>`).join('')}</div>`;
+    const msgs = chatLog.map((m, i) => `<div class="chat-msg ${m.role === 'user' ? 'me' : 'bot'}">${m.role === 'user' ? esc(m.content).replace(/\n/g, '<br>') : chatFormat(m.content)}${
+      m.role === 'assistant' && m.content.includes('문의 요약') ? `<button type="button" class="chat-copy" data-chat-copy="${i}">문의 요약 복사</button>` : ''}</div>`).join('');
+    const typing = chatBusy ? `<div class="chat-msg bot chat-typing" aria-label="답변을 쓰는 중이에요"><i></i><i></i><i></i></div>` : '';
+    return intro + msgs + typing;
+  }
+
+  function chatRender() {
+    const box = $('.chat-body');
+    if (!box) return;
+    box.innerHTML = chatMessages();
+    box.scrollTop = box.scrollHeight;
+    $('.chat-form button[type="submit"]').disabled = chatBusy;
+  }
+
+  async function chatAsk(text) {
+    const q = text.trim().slice(0, 800);
+    if (!q || chatBusy) return;
+    chatLog.push({ role: 'user', content: q });
+    chatBusy = true;
+    chatRender();
+    try {
+      const reply = await TC.chat(chatLog.slice(-12), document.body.dataset.page);
+      chatLog.push({ role: 'assistant', content: reply });
+    } catch (err) {
+      chatLog.pop();
+      fail(err);
+      $('.chat-form textarea').value = q;
+    } finally {
+      chatBusy = false;
+      chatSave();
+      chatRender();
+    }
+  }
+
+  function chatToggle(open) {
+    const panel = $('.chat-panel');
+    const fab = $('.chat-fab');
+    panel.hidden = !open;
+    fab.setAttribute('aria-expanded', String(open));
+    if (open) {
+      chatRender();
+      $('.chat-form textarea').focus();
+    } else {
+      fab.focus();
+    }
+  }
+
+  function mountChat() {
+    chatLoad();
+    const wrap = document.createElement('div');
+    wrap.className = 'chat';
+    wrap.innerHTML = `
+      <section class="chat-panel" role="dialog" aria-label="랠리봇 도우미" hidden>
+        <header class="chat-head">
+          ${ballSVG('chat-ball')}
+          <div><b>랠리봇</b><small>랠리클럽 도우미 · AI 답변은 틀릴 수 있어요</small></div>
+          <button type="button" class="chat-icon" data-chat-reset title="새 대화" aria-label="새 대화">↺</button>
+          <button type="button" class="chat-icon" data-chat-close aria-label="닫기">✕</button>
+        </header>
+        <div class="chat-body" aria-live="polite"></div>
+        <form class="chat-form">
+          <textarea rows="1" maxlength="800" placeholder="무엇이 궁금하세요?" aria-label="질문 입력"></textarea>
+          <button type="submit" class="btn btn-court btn-sm" aria-label="보내기">↑</button>
+        </form>
+      </section>
+      <button type="button" class="chat-fab" aria-expanded="false" aria-label="랠리봇에게 물어보기">${ballSVG('chat-fab-ball')}<span>도움말</span></button>`;
+    document.body.appendChild(wrap);
+
+    const input = $('.chat-form textarea', wrap);
+    $('.chat-form', wrap).addEventListener('submit', (e) => {
+      e.preventDefault();
+      const v = input.value;
+      input.value = '';
+      chatAsk(v);
+    });
+    input.addEventListener('keydown', (e) => {
+      // Enter는 보내기, Shift+Enter는 줄바꿈. 한글 조합 중에는 보내지 않아요.
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+        e.preventDefault();
+        $('.chat-form', wrap).requestSubmit();
+      }
+    });
+    wrap.addEventListener('click', (e) => {
+      const t = e.target;
+      if (t.closest('.chat-fab')) return chatToggle($('.chat-panel', wrap).hidden);
+      if (t.closest('[data-chat-close]')) return chatToggle(false);
+      if (t.closest('[data-chat-reset]')) {
+        if (chatBusy) return;
+        chatLog = [];
+        chatSave();
+        return chatRender();
+      }
+      const ask = t.closest('[data-chat-ask]');
+      if (ask) return chatAsk(ask.dataset.chatAsk);
+      const copy = t.closest('[data-chat-copy]');
+      if (copy) {
+        const text = chatLog[copy.dataset.chatCopy].content;
+        const summary = text.slice(Math.max(0, text.indexOf('문의 요약') - 3)).replace(/\*\*/g, '');
+        navigator.clipboard?.writeText(summary)
+          .then(() => toast('문의 요약을 복사했어요.'), () => toast('복사하지 못했어요.', 'error'));
+      }
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !$('.chat-panel', wrap).hidden) chatToggle(false);
+    });
+  }
+
   /* ---------- 테니스공 커서 (마우스 환경만) ---------- */
   function cursor() {
     if (!matchMedia('(pointer: fine)').matches || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -362,6 +505,7 @@
   };
 
   mountChrome();
+  mountChat();
   cursor();
   document.addEventListener('DOMContentLoaded', reveal);
   requestAnimationFrame(reveal);
